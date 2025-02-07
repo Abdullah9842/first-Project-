@@ -98,7 +98,7 @@ function App() {
           onSubmit={handleSubmit}
         >
           <button
-            className="flex ml-95 m"
+            className="flex ml-78 fixed flex-col max-w-md"
             onClick={() => setShowForm(false)}
           >
             <RiCloseLargeFill />
