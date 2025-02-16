@@ -4,7 +4,6 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import Profile from "./componets/Profile";
 import Login from "./componets/Login";
 import Signup from "./componets/SignUp";
-
 const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(
     localStorage.getItem("isLoggedIn") === "true"
@@ -12,7 +11,6 @@ const App: React.FC = () => {
   const [userEmail, setUserEmail] = useState<string>(
     localStorage.getItem("userEmail") || ""
   );
-
   // تسجيل الدخول
   const handleLogin = (email: string) => {
     localStorage.setItem("isLoggedIn", "true");
