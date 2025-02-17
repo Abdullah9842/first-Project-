@@ -49,7 +49,6 @@
 
 // export default App;
 
-
 import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Profile from "./componets/Profile";
@@ -65,13 +64,15 @@ const App: React.FC = () => {
     // جلب الكوكيز عند تحميل الصفحة
     const loggedIn = Cookies.get("isLoggedIn") === "true";
     const email = Cookies.get("userEmail") || "";
+    console.log("isLoggedIn:", loggedIn); // تتبع الكوكيز
+    console.log("userEmail:", email); // تتبع الكوكيز
     setIsLoggedIn(loggedIn);
     setUserEmail(email);
   }, []);
 
   const handleLogin = (email: string) => {
     // تخزين الكوكيز عند تسجيل الدخول
-    Cookies.set("isLoggedIn", "true", { expires: 365 }); // الكوكيز ستنتهي بعد 7 أيام
+    Cookies.set("isLoggedIn", "true", { expires: 365 }); // الكوكيز ستنتهي بعد 365 يومًا
     Cookies.set("userEmail", email, { expires: 365 });
     setIsLoggedIn(true);
     setUserEmail(email);
@@ -104,5 +105,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-
-
