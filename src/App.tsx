@@ -106,7 +106,7 @@ import React, { useState } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Profile from "./componets/Profile";
 import Login from "./componets/Login";
-import Signup from "./componets/SignUp"; // استيراد الكومبوننت بشكل صحيح
+import Signup from "./componets/Signup"; // ✅ تأكد من صحة الاسم
 
 const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(localStorage.getItem("isLoggedIn") === "true");
