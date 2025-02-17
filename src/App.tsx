@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Profile from "./componets/Profile";
@@ -10,6 +9,7 @@ const App: React.FC = () => {
   );
   const [userEmail, setUserEmail] = useState<string>(
     localStorage.getItem("userEmail") || ""
+
   );
   // تسجيل الدخول
   const handleLogin = (email: string) => {
@@ -97,4 +97,80 @@ const App: React.FC = () => {
 
 export default App;
 
+// import { useEffect, useState } from "react";
+// import { db } from "./componets/firebase";
+// import { collection, getDocs,addDoc,updateDoc,doc, deleteDoc} from "firebase/firestore";
+// import "./App.css";
+// const App = () => {
+//   const usersCollectionRef = collection(db, "users");
+//   interface User {
+//     id: string;
+//     name: string;
+//     age: number;
+//   }
 
+//   const [users, setusers] = useState<User[]>([]);
+//   const [Newname, setNewName] = useState<string>("");
+//   const [newAge, setNewAge] = useState<number>(0);
+//   const createUser = async () => {
+//     await addDoc(usersCollectionRef,{name: Newname, age: newAge})
+
+//   };
+//   const updateUser = async (id:string, age:number) =>{
+//     const userDoc = doc(db, "users", id);
+//      const newField = {age:age + 1};
+//      await updateDoc(userDoc, newField)
+//   }
+//   const deleteUser = async (id:string) =>{
+//     const userDoc = doc(db, "users", id)
+//     await deleteDoc(userDoc)
+//   }
+
+//   useEffect(() => {
+//     const getusers = async () => {
+//       const data = await getDocs(usersCollectionRef);
+//       setusers(
+//         data.docs.map((doc) => ({
+//           id: doc.id,
+//           name: doc.data().name,
+//           age: doc.data().age,
+//         }))
+//       );
+//     };
+//     getusers();
+//   }, [usersCollectionRef]);
+
+//   return (
+//     <>
+//       <input
+//         type="text"
+//         placeholder="name"
+//         onChange={(e) => {
+//           setNewName(e.target.value);
+//         }}
+//       />
+//       <input
+//         type="number"
+//         placeholder="age"
+//         onChange={(e) => {
+//           setNewAge(Number(e.target.value));
+//         }}
+//       />
+//       <button onClick={createUser}>create user</button>
+
+
+//       <div>
+//         {users.map((user) => (
+//           <div key={user.id}>
+//             <p className="mt-3.5 " > Name {user.name}</p>
+//             <p className=""> age {user.age}</p>
+//             <button className="bg-blue-500" onClick={() => {updateUser(user.id,user.age)}}>Increase</button>
+//             <button className="bg-red-500" onClick={() => {deleteUser(user.id)}}>Delete</button>
+//           </div>
+//         ))}{" "}
+//       </div>
+//     </>
+//   );
+// };
+
+// export default App;

@@ -6,6 +6,8 @@ import { initializeApp } from "firebase/app";
 
 import { getAuth } from "firebase/auth";
 
+import { getFirestore } from "firebase/firestore";
+
 // إعداد Firebase باستخدام المتغيرات البيئية
 const firebaseConfig = {
   apiKey: "AIzaSyCGx4Zjd2X9LoMGvNf42x9YKAyZ1xjSrGo",
@@ -25,3 +27,5 @@ export const auth = getAuth(app);
 
 // تصدير app (اختياري)
 export default app;
+
+export const db = getFirestore(app);
