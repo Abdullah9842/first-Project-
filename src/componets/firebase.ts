@@ -1,12 +1,8 @@
 
-
-
-
 import { initializeApp } from "firebase/app";
-
-import { getAuth } from "firebase/auth";
-
-import { getFirestore } from "firebase/firestore";
+import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { getStorage, FirebaseStorage } from "firebase/storage";
+import { getFirestore, Firestore } from "firebase/firestore";
 
 // إعداد Firebase باستخدام المتغيرات البيئية
 const firebaseConfig = {
@@ -23,9 +19,13 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 // تصدير خدمة المصادقة (Authentication) للاستخدام في المكونات الأخرى
-export const auth = getAuth(app);
+ const auth = getAuth(app);
 
 // تصدير app (اختياري)
 export default app;
 
-export const db = getFirestore(app);
+const db: Firestore = getFirestore(app);
+ const googleProvider = new GoogleAuthProvider();
+ const storage: FirebaseStorage = getStorage(app);
+
+export { auth, googleProvider, db,storage};
