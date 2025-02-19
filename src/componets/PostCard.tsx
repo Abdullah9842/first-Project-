@@ -114,6 +114,8 @@ import { AiFillDelete } from "react-icons/ai";
 import { FaHeart, FaRegHeart } from "react-icons/fa";
 import { deleteDoc, doc } from "firebase/firestore";
 import { db } from "./firebase"; // تأكد من استيراد Firestore
+import "../index.css";
+
 
 interface Post {
   image: string | null;
@@ -147,7 +149,9 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete, onLike }) => {
   };
 
   return (
-    <div className="bg-gray-400 p-4 shadow-lg rounded-lg w-full max-w-lg">
+      <div className="bg-gray-400 p-4 shadow-lg rounded-lg w-full max-w-lg">
+{/* <div className="card p-4 shadow-lg rounded-lg w-full max-w-lg"> */}
+
       {/* تحقق من وجود الصورة أو الفيديو قبل العرض */}
       {post.mediaUrl && /\.(mov|mp4)$/i.test(post.mediaUrl) ? (
         <video controls className="w-full h-auto rounded-lg mb-3">
@@ -182,7 +186,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete, onLike }) => {
         </a>
       )}
 
-      <div className="flex justify-between items-center mt-3">
+      <div className="flex justify-between items-center mt-0 mb-0">
         {/* زر الحذف */}
         <button
           aria-label="Delete post"

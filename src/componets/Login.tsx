@@ -1,65 +1,3 @@
-// import React, { useState } from "react";
-// import { useNavigate } from "react-router-dom";
-
-// interface LoginProps {
-//   onLogin: (email: string) => void;
-// }
-
-// const Login: React.FC<LoginProps> = ({ onLogin }) => {
-//   const [email, setEmail] = useState<string>("");
-//   const [password, setPassword] = useState<string>("");
-//   const navigate = useNavigate();
-
-//   const handleLogin = (e: React.FormEvent) => {
-//     e.preventDefault();
-//     // هنا يمكنك إضافة التحقق من صحة البيانات مع قاعدة البيانات أو API
-//     onLogin(email); // تسجيل الدخول
-//     navigate(`/profile/${email}`); // الانتقال إلى صفحة الملف الشخصي
-//   };
-
-//   return (
-//     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
-//       <form
-//         className="bg-white p-6 rounded-lg shadow-md w-full max-w-sm"
-//         onSubmit={handleLogin}
-//       >
-//         <h2 className="text-2xl font-bold mb-4 text-center">تسجيل الدخول</h2>
-//         <input
-//           type="email"
-//           placeholder="البريد الإلكتروني"
-//           value={email}
-//           onChange={(e) => setEmail(e.target.value)}
-//           className="w-full p-2 mb-4 border rounded-lg"
-//           required
-//         />
-//         <input
-//           type="password"
-//           placeholder="كلمة المرور"
-//           value={password}
-//           onChange={(e) => setPassword(e.target.value)}
-//           className="w-full p-2 mb-4 border rounded-lg"
-//           required
-//         />
-//         <button
-//           type="submit"
-//           className="w-full bg-blue-500 text-white p-2 rounded-lg hover:bg-blue-600"
-//         >
-//           تسجيل الدخول
-//         </button>
-//         <p className="mt-4 text-center">
-//           ليس لديك حساب؟{" "}
-//           <a href="/signup" className="text-blue-500 hover:underline">
-//             أنشئ حسابًا
-//           </a>
-//         </p>
-//       </form>
-//     </div>
-//   );
-// };
-
-// export default Login;
-
-
 
 
 
@@ -98,9 +36,10 @@
 //     setIsLoading(true); // تفعيل حالة التحميل
 //     try {
 //       // تسجيل الدخول باستخدام Firebase
-//       await signInWithEmailAndPassword(auth, email, password);
+//       const userCredential = await signInWithEmailAndPassword(auth, email, password);
+//       const user = userCredential.user;
 //       onLogin(email); // تسجيل الدخول
-//       navigate(`/profile/${email}`); // الانتقال إلى صفحة الملف الشخصي
+//       navigate(`/profile/${user.uid}`); // الانتقال إلى صفحة الملف الشخصي
 //     } catch  {
 //       setError("فشل تسجيل الدخول، تأكد من البيانات.");
 //     } finally {
@@ -160,17 +99,18 @@
 //           {isLoading ? "جاري تسجيل الدخول..." : "تسجيل الدخول"}
 //         </button>
 //         {error && <p className="text-red-500 text-center mt-4">{error}</p>} {/* عرض الخطأ */}
-//       </form>
-
-//       <div className="mt-4">
 //         <button
 //           onClick={handleGoogleLogin}
-//           className="w-full bg-red-500 text-white p-2 rounded-lg"
+//           className="w-full mt-2 bg-red-500 text-white p-2 rounded-lg"
 //           disabled={isLoading} // تعطيل الزر أثناء التحميل
 //         >
 //           {isLoading ? "جاري تسجيل الدخول..." : "تسجيل الدخول باستخدام Google"}
 //         </button>
-//       </div>
+      
+//       </form>
+
+//       <div className="mt-4">
+   
 
 //       <p className="mt-4 text-center">
 //         ليس لديك حساب؟{" "}
@@ -178,32 +118,36 @@
 //           أنشئ حسابًا
 //         </a>
 //       </p>
+//       </div>
 //     </div>
 //   );
 // };
 
 // export default Login;
 
+
+
+
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { auth, googleProvider } from './firebase'; // إزالة appleProvider
+import { auth, googleProvider } from './firebase';
 import { signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
 
 interface LoginProps {
-  onLogin: (email: string) => void;
+  onLogin: (userId: string) => void;
 }
 
 const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
-  const [error, setError] = useState<string>(""); // حالة الخطأ
-  const [isLoading, setIsLoading] = useState<boolean>(false); // حالة التحميل
+  const [error, setError] = useState<string>("");
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const navigate = useNavigate();
 
-  // دالة تسجيل الدخول عبر البريد الإلكتروني
+  // تسجيل الدخول باستخدام البريد الإلكتروني وكلمة المرور
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(""); // إعادة تعيين الخطأ
+    setError("");
 
     if (!email || !password) {
       setError("الرجاء إدخال البريد الإلكتروني وكلمة المرور.");
@@ -212,9 +156,10 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
     setIsLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      onLogin(email);
-      navigate(`/profile/${email}`);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      onLogin(user.uid);
+      navigate(`/profile/${user.uid}`);
     } catch {
       setError("فشل تسجيل الدخول، تأكد من البيانات.");
     } finally {
@@ -222,19 +167,17 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     }
   };
 
-  // دالة تسجيل الدخول عبر Google
+  // تسجيل الدخول باستخدام Google
   const handleGoogleLogin = async (e: React.MouseEvent) => {
     e.preventDefault();
     setError("");
 
     setIsLoading(true);
     try {
-      await signInWithPopup(auth, googleProvider);
-      const user = auth.currentUser;
-      if (user) {
-        onLogin(user.email || "");
-        navigate(`/profile/${user.email}`);
-      }
+      const userCredential = await signInWithPopup(auth, googleProvider);
+      const user = userCredential.user; // ✅ استخدم user مباشرة بعد تسجيل الدخول
+      onLogin(user.uid);
+      navigate(`/profile/${user.uid}`); // ✅ استخدم uid بدلاً من email
     } catch {
       setError("فشل تسجيل الدخول باستخدام Google، جرب مرة أخرى.");
     } finally {
@@ -244,11 +187,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
-      <form
-        className="bg-white p-6 rounded-lg shadow-md w-full max-w-sm"
-        onSubmit={handleEmailLogin}
-      >
+      <form className="bg-white p-6 rounded-lg shadow-md w-full max-w-sm" onSubmit={handleEmailLogin}>
         <h2 className="text-2xl font-bold mb-4 text-center">تسجيل الدخول</h2>
+
         <input
           type="email"
           placeholder="البريد الإلكتروني"
@@ -257,6 +198,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           className="w-full p-2 mb-4 border rounded-lg"
           required
         />
+
         <input
           type="password"
           placeholder="كلمة المرور"
@@ -265,23 +207,24 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           className="w-full p-2 mb-4 border rounded-lg"
           required
         />
+
         <button
           type="submit"
-          className="w-full bg-blue-500 text-white p-2 rounded-lg hover:bg-blue-600"
+          className="w-full bg-blue-500 text-white p-2 rounded-lg hover:bg-blue-600 disabled:bg-gray-400"
           disabled={isLoading}
         >
           {isLoading ? "جاري تسجيل الدخول..." : "تسجيل الدخول"}
         </button>
+
         {error && <p className="text-red-500 text-center mt-4">{error}</p>}
-        <div className="mt-4">
+
         <button
           onClick={handleGoogleLogin}
-          className="w-full bg-red-500 text-white p-2 rounded-lg"
+          className="w-full mt-2 bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 disabled:bg-gray-400"
           disabled={isLoading}
         >
           {isLoading ? "جاري تسجيل الدخول..." : "تسجيل الدخول باستخدام Google"}
         </button>
-      </div>
       </form>
 
       <p className="mt-4 text-center">
@@ -290,10 +233,11 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           أنشئ حسابًا
         </a>
       </p>
-
-    
     </div>
   );
 };
 
 export default Login;
+
+
+
