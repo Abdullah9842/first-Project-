@@ -123,6 +123,76 @@
 
 // export default App;
 
+// import React, { useState, useEffect } from "react";
+// import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+// import Profile from "./componets/Profile";
+// import Login from "./componets/Login";
+// import Signup from "./componets/SignUp";
+// import { auth } from './componets/firebase';
+// import { onAuthStateChanged, signOut } from 'firebase/auth';
+// import Cookies from "js-cookie";
+// import './index.css';
+
+// const App: React.FC = () => {
+//   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(Cookies.get("isLoggedIn") === "true");
+//   const [userId, setUserId] = useState<string>(Cookies.get("userId") || "");
+
+//   useEffect(() => {
+//     const unsubscribe = onAuthStateChanged(auth, (user) => {
+//       if (user) {
+//         setIsLoggedIn(true);
+//         setUserId(user.uid);
+//         Cookies.set("isLoggedIn", "true", { expires: 365 });
+//         Cookies.set("userId", user.uid, { expires: 365 });
+//       } else {
+//         setIsLoggedIn(false);
+//         setUserId("");
+//         Cookies.remove("isLoggedIn");
+//         Cookies.remove("userId");
+//       }
+//     });
+
+//     return () => unsubscribe();
+//   }, []);
+
+//   const handleLogout = async () => {
+//     try {
+//       await signOut(auth);
+//       setIsLoggedIn(false);
+//       setUserId("");
+//       Cookies.remove("isLoggedIn");
+//       Cookies.remove("userId");
+//     } catch (error) {
+//       console.error("Error logging out:", error);
+//     }
+//   };
+
+//   const handleLogin = (userId: string) => {
+//     setIsLoggedIn(true);
+//     setUserId(userId);
+//   };
+
+//   return (
+//     <Router>
+//       <Routes>
+//         <Route path="/" element={isLoggedIn ? <Navigate to={`/profile/${userId}`} replace /> : <Navigate to="/login" replace />} />
+//         <Route path="/login" element={isLoggedIn ? <Navigate to={`/profile/${userId}`} replace /> : <Login onLogin={handleLogin} />} />
+//         <Route path="/signup" element={isLoggedIn ? <Navigate to={`/profile/${userId}`} replace /> : <Signup onSignup={handleLogin} />} />
+//         <Route path="/profile/:userId" element={isLoggedIn ? <Profile /> : <Navigate to="/login" replace />} />
+//         <Route path="*" element={<div>404 - Page Not Found</div>} />
+//       </Routes>
+//       {isLoggedIn && (
+//         <button hidden onClick={handleLogout} className="fixed bottom-5 left-6 bg-red-500 text-white px-4 py-2 rounded-full hover:bg-red-600 transition">
+//           Logout
+//         </button>
+//       )}
+//     </Router>
+//   );
+// };
+
+// export default App;
+
+
 import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Profile from "./componets/Profile";
