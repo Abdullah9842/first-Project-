@@ -99,7 +99,7 @@ const FriendSystem: React.FC = () => {
     const fetchFriends = async () => {
       const q = query(
         collection(db, "Friends"),
-        where("userId1", "==", currentUser.uid)
+        where("userId2", "==", currentUser.uid)
       );
       const querySnapshot = await getDocs(q);
       const friendList = querySnapshot.docs.map(doc => doc.data() as Friend);
