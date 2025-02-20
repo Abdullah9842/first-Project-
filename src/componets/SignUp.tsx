@@ -1,8 +1,9 @@
 
+
 // import React, { useState } from "react";
 // import { useNavigate } from "react-router-dom";
 // import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-// import { auth } from "./firebase.js"; // Make sure the path is correct
+// import { auth } from "./firebase";
 
 // interface SignupProps {
 //   onSignup: (email: string) => void;
@@ -20,24 +21,25 @@
 //     e.preventDefault();
 //     setIsLoading(true);
 //     setError(null);
-
+  
 //     try {
-//       // Create a new account
+//       // إنشاء الحساب
 //       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-//       const user = userCredential.user;
-
-//       // Update the user profile with the name
+//       const user = userCredential.user; // ✅ تعريف user هنا
+  
+//       // تحديث الاسم
 //       await updateProfile(user, { displayName: name });
-
-//       // Pass the email to the onSignup function
-//       onSignup(user.email || "");
-
-//       // Redirect to the homepage
-//       navigate("/");
+  
+//       // تمرير userId بدلاً من email
+//       onSignup(user.uid);
+  
+//       // توجيه المستخدم إلى صفحة البروفايل الخاصة به
+//       navigate(`/profile/${user.uid}`);
+  
 //     } catch (error: unknown) {
 //       console.error(error);
 //       if (error instanceof Error) {
-//         setError(error.message); // Display the error message to the user
+//         setError(error.message); // عرض رسالة الخطأ
 //       } else {
 //         setError("An unknown error occurred");
 //       }
@@ -46,6 +48,8 @@
 //     }
 //   };
   
+  
+
 //   return (
 //     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
 //       <form
@@ -112,10 +116,19 @@
 
 
 
+
+
+
+
+
+
+
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { auth } from "./firebase";
+import { db } from "./firebase"; // تأكد من استيراد db من Firebase
+import { doc, setDoc } from "firebase/firestore"; // تأكد من استيراد هذه الدوال من Firestore
 
 interface SignupProps {
   onSignup: (email: string) => void;
@@ -129,39 +142,21 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const navigate = useNavigate();
 
-  // const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
-  //   e.preventDefault();
-  //   setIsLoading(true);
-  //   setError(null);
+  const saveUserToFirestore = async (userId: string, email: string, name: string) => {
+    const userRef = doc(db, "Users", userId);
+    try {
+      // حفظ بيانات المستخدم في Firestore
+      await setDoc(userRef, {
+        email: email,
+        userId: userId,
+        name: name,
+        createdAt: new Date(), // حفظ وقت التسجيل
+      });
+    } catch (err) {
+      console.error("Error saving user data to Firestore: ", err);
+    }
+  };
 
-  //   try {
-  //     // Create a new account
-  //     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-  //     const user = userCredential.user;
-
-  //     // Update the user profile with the name
-  //     await updateProfile(user, { displayName: name });
-
-  //     // Pass the email to the onSignup function
-  //     onSignup(user.uid || "");
-
-  //     // Check if the user has a username set, if not, navigate to SetUsername page
-  //     if (!user.displayName) {
-  //       navigate("/set-username");
-  //     } else {
-  //       navigate("/"); // Redirect to homepage
-  //     }
-  //   } catch (error: unknown) {
-  //     console.error(error);
-  //     if (error instanceof Error) {
-  //       setError(error.message); // Display the error message to the user
-  //     } else {
-  //       setError("An unknown error occurred");
-  //     }
-  //   } finally {
-  //     setIsLoading(false);
-  //   }
-  // };
   const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
@@ -174,6 +169,9 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
   
       // تحديث الاسم
       await updateProfile(user, { displayName: name });
+  
+      // حفظ البيانات في Firestore
+      await saveUserToFirestore(user.uid, email, name);
   
       // تمرير userId بدلاً من email
       onSignup(user.uid);
@@ -192,7 +190,6 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
       setIsLoading(false);
     }
   };
-  
   
 
   return (
@@ -258,13 +255,3 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
 };
 
 export default Signup;
-
-
-
-
-
-
-
-
-
-
