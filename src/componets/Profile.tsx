@@ -505,18 +505,171 @@
 //   );
 // };
 
+
+// export default Profile;
+
+
+
+// import React, { useState, useEffect } from "react";
+// import PostCard from "./PostCard";
+// import FormToPost from "./FormToPost";
+// import { addDoc, collection, query, where, onSnapshot } from "firebase/firestore";
+// import { db } from "./firebase";
+// import Settings from "./Settings";
+// import "../index.css";
+// import { MdOutlineSettingsSuggest } from "react-icons/md";
+// import { signOut } from "firebase/auth";
+// import { auth } from "./firebase";
+// import { useNavigate } from "react-router-dom"; // Import useNavigate
+
+// interface Post {
+//   image: string | null;
+//   text: string;
+//   id: string;
+//   liked: boolean;
+//   likeCount: number;
+//   mediaUrl?: string;
+//   userId?: string;
+// }
+
+// const Profile: React.FC = () => {
+//   const [posts, setPosts] = useState<Post[]>([]);
+//   const [showForm, setShowForm] = useState<boolean>(false);
+//   const [showSettings, setShowSettings] = useState<boolean>(false);
+//   const [followersList, setFollowersList] = useState<string[]>([]);
+
+//   const navigate = useNavigate(); // Initialize the navigate function
+
+//   useEffect(() => {
+//     const unsubscribe = auth.onAuthStateChanged((user) => {
+//       if (user) {
+//         const followersRef = collection(db, "users", user.uid, "followers");
+//         const unsubscribeFollowers = onSnapshot(followersRef, (snapshot) => {
+//           const followers = snapshot.docs.map(doc => doc.id);
+//           setFollowersList([user.uid, ...followers]);
+//         });
+
+//         const q = query(
+//           collection(db, "Posts"),
+//           where("userId", "in", [user.uid, ...followersList])
+//         );
+
+//         const unsubscribeSnapshot = onSnapshot(q, (querySnapshot) => {
+//           const postsData = querySnapshot.docs.map((doc) => ({
+//             id: doc.id,
+//             ...doc.data(),
+//           })) as Post[];
+
+//           setPosts(postsData);
+//         });
+
+//         return () => {
+//           unsubscribeSnapshot();
+//           unsubscribeFollowers();
+//         };
+//       } else {
+//         setPosts([]);
+//       }
+//     });
+
+//     return () => unsubscribe();
+//   }, [followersList]);
+
+//   const handleSubmit = async (text: string, image: string | null, mediaUrl: string) => {
+//     try {
+//       const newPost = {
+//         text,
+//         image,
+//         mediaUrl,
+//         liked: false,
+//         likeCount: 0,
+//         timestamp: new Date(),
+//         userId: auth.currentUser?.uid || "",
+//       };
+
+//       const docRef = await addDoc(collection(db, "Posts"), newPost);
+//       setPosts((prevPosts) => [{ id: docRef.id, ...newPost }, ...prevPosts]);
+//       setShowForm(false);
+//     } catch (error) {
+//       console.error("Error adding post: ", error);
+//     }
+//   };
+
+//   const handleDelete = (id: string) => {
+//     setPosts((prevPosts) => prevPosts.filter((post) => post.id !== id));
+//   };
+
+//   const handleLike = (id: string) => {
+//     setPosts((prevPosts) =>
+//       prevPosts.map((post) =>
+//         post.id === id
+//           ? { ...post, liked: !post.liked, likeCount: post.liked ? post.likeCount - 1 : post.likeCount + 1 }
+//           : post
+//       )
+//     );
+//   };
+
+//   const handleLogout = async () => {
+//     try {
+//       await signOut(auth);
+//     } catch (error) {
+//       console.error("Error logging out: ", error);
+//     }
+//   };
+
+//   return (
+//     <div className="flex flex-col items-center min-h-screen bg-gray-300 p-6">
+//       <button
+//         onClick={() => setShowSettings(true)}
+//         className="absolute top-4 left-4 text-gray-600 px-4 py-2 rounded-full hover:bg-blue-600 transition"
+//       >
+//         <MdOutlineSettingsSuggest className="text-2xl" />
+//       </button>
+
+//       {showSettings && <Settings onClose={() => setShowSettings(false)} handleLogout={handleLogout} />}
+
+//       <button
+//         className="bg-blue-500 text-white px-4 py-2 rounded-full hover:bg-blue-300 fixed bottom-5 right-6 transition mb-5"
+//         onClick={() => setShowForm(true)}
+//       >
+//         +
+//       </button>
+
+//       {showForm && <FormToPost onSubmit={handleSubmit} onClose={() => setShowForm(false)} />}
+
+//       <button
+//         onClick={() => navigate('/follow-system')}  // Navigate to follow system
+//         className="bg-green-500 text-white px-4 py-2 rounded-full hover:bg-green-300 mt-5"
+//       >
+//         الذهاب إلى نظام المتابعين
+//       </button>
+
+//       <div className="mt-30 w-full flex flex-col items-center gap-4">
+//         {posts.length === 0 ? (
+//           <p>لا يوجد بوستات بعد. من فضلك أضف واحدة.</p>
+//         ) : (
+//           posts.map((post) => (
+//             <PostCard key={post.id} post={post} onDelete={handleDelete} onLike={handleLike} />
+//           ))
+//         )}
+//       </div>
+//     </div>
+//   );
+// };
+
 // export default Profile;
 import React, { useState, useEffect } from "react";
-import { addDoc, collection, query, where, onSnapshot, doc, setDoc } from "firebase/firestore";
+import PostCard from "./PostCard";
+import FormToPost from "./FormToPost";
+import { addDoc, collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "./firebase";
+import Settings from "./Settings";
+import "../index.css";
+import { MdOutlineSettingsSuggest } from "react-icons/md";
 import { signOut } from "firebase/auth";
 import { auth } from "./firebase";
-import Settings from "./Settings";
-import { MdOutlineSettingsSuggest } from "react-icons/md";
-import "../index.css";
-import FormToPost from "./FormToPost";
-import PostCard from "./PostCard";
-// واجهة البيانات للبوسات
+import { useNavigate } from "react-router-dom"; // Import useNavigate
+
 interface Post {
   image: string | null;
   text: string;
@@ -527,27 +680,31 @@ interface Post {
   userId?: string;
 }
 
-interface Follow {
-  followerId: string;
-  followingId: string;
-  approved: boolean;
-}
-
 const Profile: React.FC = () => {
   const [posts, setPosts] = useState<Post[]>([]);
   const [showForm, setShowForm] = useState<boolean>(false);
   const [showSettings, setShowSettings] = useState<boolean>(false);
-  const [isFollowing, setIsFollowing] = useState<boolean>(false); // حالة المتابعة
-  const [userToFollow, setUserToFollow] = useState<string>("");  // حقل لإدخال اسم المستخدم
-  const currentUserId = auth.currentUser?.uid;
+  const [followersList, setFollowersList] = useState<string[]>([]);
+  const [loading, setLoading] = useState<boolean>(false); // to manage loading state
 
-  // جلب البوستات
+  const navigate = useNavigate(); // Initialize the navigate function
+
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
+        // Set loading to true when fetching data
+        setLoading(true);
+
+        const followersRef = collection(db, "users", user.uid, "followers");
+        const unsubscribeFollowers = onSnapshot(followersRef, (snapshot) => {
+          const followers = snapshot.docs.map(doc => doc.id);
+          setFollowersList([user.uid, ...followers]);
+        });
+
+        // Query posts for the current user and their followers
         const q = query(
           collection(db, "Posts"),
-          where("userId", "==", user.uid)
+          where("userId", "in", [user.uid, ...followersList])
         );
 
         const unsubscribeSnapshot = onSnapshot(q, (querySnapshot) => {
@@ -557,33 +714,21 @@ const Profile: React.FC = () => {
           })) as Post[];
 
           setPosts(postsData);
+          setLoading(false); // Set loading to false after data is fetched
         });
 
-        return () => unsubscribeSnapshot();
+        return () => {
+          unsubscribeSnapshot();
+          unsubscribeFollowers();
+        };
       } else {
         setPosts([]);
+        setLoading(false);
       }
     });
 
     return () => unsubscribe();
-  }, []);
-
-  // التحقق إذا كنت تتابع الشخص
-  useEffect(() => {
-    if (currentUserId) {
-      const q = query(
-        collection(db, "Follows"),
-        where("followerId", "==", currentUserId),
-        where("followingId", "==", userToFollow) // نراقب المتابعة بناءً على اسم المستخدم
-      );
-
-      const unsubscribeSnapshot = onSnapshot(q, (querySnapshot) => {
-        setIsFollowing(querySnapshot.docs.length > 0);
-      });
-
-      return () => unsubscribeSnapshot();
-    }
-  }, [currentUserId, userToFollow]);
+  }, [followersList]);
 
   const handleSubmit = async (text: string, image: string | null, mediaUrl: string) => {
     try {
@@ -594,7 +739,7 @@ const Profile: React.FC = () => {
         liked: false,
         likeCount: 0,
         timestamp: new Date(),
-        userId: currentUserId || "",
+        userId: auth.currentUser?.uid || "",
       };
 
       const docRef = await addDoc(collection(db, "Posts"), newPost);
@@ -617,31 +762,6 @@ const Profile: React.FC = () => {
           : post
       )
     );
-  };
-
-  const handleFollow = async () => {
-    if (currentUserId && userToFollow) {
-      const followData: Follow = {
-        followerId: currentUserId,
-        followingId: userToFollow,
-        approved: false,  // يحتاج إلى موافقة
-      };
-
-      try {
-        await addDoc(collection(db, "Follows"), followData);
-      } catch (error) {
-        console.error("Error following user: ", error);
-      }
-    }
-  };
-
-  const handleApproveFollow = async (userId: string) => {
-    try {
-      const followRef = doc(db, "Follows", userId);
-      await setDoc(followRef, { approved: true }, { merge: true });
-    } catch (error) {
-      console.error("Error approving follow: ", error);
-    }
   };
 
   const handleLogout = async () => {
@@ -672,8 +792,17 @@ const Profile: React.FC = () => {
 
       {showForm && <FormToPost onSubmit={handleSubmit} onClose={() => setShowForm(false)} />}
 
+      <button
+        onClick={() => navigate('/follow-system')}  // Navigate to follow system
+        className="bg-green-500 text-white px-4 py-2 rounded-full hover:bg-green-300 mt-5"
+      >
+        الذهاب إلى نظام المتابعين
+      </button>
+
       <div className="mt-30 w-full flex flex-col items-center gap-4">
-        {posts.length === 0 ? (
+        {loading ? (
+          <p>جاري تحميل البوستات...</p> // Loading state text
+        ) : posts.length === 0 ? (
           <p>لا يوجد بوستات بعد. من فضلك أضف واحدة.</p>
         ) : (
           posts.map((post) => (
@@ -681,32 +810,6 @@ const Profile: React.FC = () => {
           ))
         )}
       </div>
-
-      {/* إدخال اسم المستخدم المتابع */}
-      <div className="mt-4">
-        <input
-          type="text"
-          value={userToFollow}
-          onChange={(e) => setUserToFollow(e.target.value)}
-          placeholder="أدخل اسم المستخدم لمتابعته"
-          className="px-4 py-2 border rounded-lg"
-        />
-        <button
-          className="bg-blue-500 text-white px-4 py-2 rounded-full mt-2"
-          onClick={handleFollow}
-          disabled={isFollowing} // إذا كنت تتابع بالفعل، زر "متابعة" يكون معطلاً
-        >
-          {isFollowing ? "أنت تتابع هذا الشخص" : "متابعة"}
-        </button>
-      </div>
-
-      {/* زر موافقة المتابعة */}
-      <button
-        className="bg-green-500 text-white px-4 py-2 rounded-full mt-4"
-        onClick={() => handleApproveFollow(userToFollow)}
-      >
-        موافقة على المتابعة
-      </button>
     </div>
   );
 };
