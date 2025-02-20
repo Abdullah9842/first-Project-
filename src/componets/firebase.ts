@@ -14,18 +14,21 @@ const firebaseConfig = {
   appId: "1:597164029013:web:72272a88da2a33aa5190dc",
   measurementId: "G-6PJL6V2KJG"
 };
-
 // تهيئة Firebase
 const app = initializeApp(firebaseConfig);
 
 // تصدير خدمة المصادقة (Authentication) للاستخدام في المكونات الأخرى
- const auth = getAuth(app);
+const auth = getAuth(app);
 
-// تصدير app (اختياري)
-export default app;
-
+// تصدير خدمة Firestore
 const db: Firestore = getFirestore(app);
- const googleProvider = new GoogleAuthProvider();
- const storage: FirebaseStorage = getStorage(app);
 
-export { auth, googleProvider, db,storage};
+// تصدير Google Auth Provider
+const googleProvider = new GoogleAuthProvider();
+
+// تصدير خدمة التخزين (Storage)
+const storage: FirebaseStorage = getStorage(app);
+
+// تصدير المتغيرات بحيث يمكن استخدامها في باقي أجزاء التطبيق
+export default app;
+export { auth, googleProvider, db, storage };
