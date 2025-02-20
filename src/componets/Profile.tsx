@@ -292,19 +292,24 @@
 
 // export default Profile;
 
+
+
+
+
+
+
+
 import React, { useState, useEffect } from "react";
 import PostCard from "./PostCard";
 import FormToPost from "./FormToPost";
-import { addDoc, collection, query, where, onSnapshot } from "firebase/firestore";
+import { addDoc, collection, query, where, limit, onSnapshot, getDocs } from "firebase/firestore";
 import { db } from "./firebase";
 import Settings from "./Settings";
-import "../index.css";
 import { MdOutlineSettingsSuggest } from "react-icons/md";
 import { signOut } from "firebase/auth";
 import { auth } from "./firebase";
-import { useNavigate } from "react-router-dom"; // استيراد useNavigate
+import { useNavigate } from "react-router-dom";
 
-// واجهة البيانات للبوسات
 interface Post {
   image: string | null;
   text: string;
@@ -317,54 +322,62 @@ interface Post {
 
 const Profile: React.FC = () => {
   const [posts, setPosts] = useState<Post[]>([]);
-  const [friends, setFriends] = useState<string[]>([]); // قائمة الأصدقاء
   const [showForm, setShowForm] = useState<boolean>(false);
   const [showSettings, setShowSettings] = useState<boolean>(false);
-  const navigate = useNavigate(); // تهيئة التنقل
+  const navigate = useNavigate();
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
+    const fetchData = async () => {
+      const user = auth.currentUser;
       if (user) {
-        // جلب قائمة الأصدقاء
-        const fetchFriends = async () => {
-          const friendsQuery = query(
+        try {
+          // جلب قائمة الأصدقاء
+          const friendsQuery1 = query(
             collection(db, "Friends"),
-            where("userId1", "==", user.uid) // أو يمكنك إضافة userId2 أيضًا حسب هيكل البيانات
+            where("userId1", "==", user.uid)
           );
-          onSnapshot(friendsQuery, (querySnapshot) => {
-            const friendsList: string[] = querySnapshot.docs.map((doc) => {
-              const data = doc.data();
-              return data.userId2 || data.userId1; // جلب id الأصدقاء
-            });
-            setFriends(friendsList);
+          const friendsQuery2 = query(
+            collection(db, "Friends"),
+            where("userId2", "==", user.uid)
+          );
+
+          const friendsSnapshot1 = await getDocs(friendsQuery1);
+          const friendsSnapshot2 = await getDocs(friendsQuery2);
+
+          const friendsList: string[] = [
+            ...friendsSnapshot1.docs.map((doc) => doc.data().userId2),
+            ...friendsSnapshot2.docs.map((doc) => doc.data().userId1),
+          ];
+
+          // استخدام onSnapshot للحصول على التحديثات الفورية للبوستات
+          const postsQuery = query(
+            collection(db, "Posts"),
+            where("userId", "in", [user.uid, ...friendsList]), // تصفية البوستات حسب المستخدم وأصدقائه
+            limit(10)
+          );
+
+          // الاستماع لتحديثات البوستات بشكل فوري
+          onSnapshot(postsQuery, (snapshot) => {
+            const postsData = snapshot.docs.map((doc) => ({
+              id: doc.id,
+              image: doc.data().image || null,
+              text: doc.data().text,
+              liked: doc.data().liked || false,
+              likeCount: doc.data().likeCount || 0,
+              mediaUrl: doc.data().mediaUrl,
+              userId: doc.data().userId,
+            }));
+            setPosts(postsData);
           });
-        };
 
-        fetchFriends();
-
-        // جلب المنشورات للمستخدم والأصدقاء
-        const q = query(
-          collection(db, "Posts"),
-          where("userId", "in", [user.uid, ...friends]) // تصفية المنشورات للمستخدم والأصدقاء
-        );
-
-        const unsubscribeSnapshot = onSnapshot(q, (querySnapshot) => {
-          const postsData = querySnapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          })) as Post[];
-
-          setPosts(postsData);
-        });
-
-        return () => unsubscribeSnapshot();
-      } else {
-        setPosts([]); // إذا لم يكن هناك مستخدم
+        } catch (error) {
+          console.error("Error fetching data: ", error);
+        }
       }
-    });
+    };
 
-    return () => unsubscribe();
-  }, [friends]); // عند تغيير الأصدقاء
+    fetchData();
+  }, []); // تفعيل الـ useEffect عند التحميل لأول مرة
 
   const handleSubmit = async (text: string, image: string | null, mediaUrl: string) => {
     try {
@@ -411,7 +424,7 @@ const Profile: React.FC = () => {
   return (
     <div className="flex flex-col items-center min-h-screen bg-gray-300 p-6">
       <button
-        onClick={() => navigate('/follow-system')} // التنقل إلى نظام المتابعين
+        onClick={() => navigate('/follow-system')}
         className="bg-green-500 text-white px-4 py-2 rounded-full hover:bg-green-300 mt-5"
       >
         الذهاب إلى نظام المتابعين
