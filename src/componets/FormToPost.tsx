@@ -2,16 +2,16 @@
 
 // import React, { useEffect, useRef, useState } from "react";
 // import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-// import { storage } from "./firebase"; // تأكد من استيراد storage
-// import { RiCloseLargeFill } from "react-icons/ri"; // أيقونة الإغلاق
-// import { auth } from "./firebase"; // تأكد من استيراد auth
+// import { storage } from "./firebase"; 
+// import { RiCloseLargeFill } from "react-icons/ri";
+// import { auth } from "./firebase"; 
 // import SpotifyInput from "./Spotfiy";
 // import { BiSolidImageAdd } from "react-icons/bi";
 // import { BsSendFill } from "react-icons/bs";
 
 // interface FormToPostProps {
 //   onSubmit: (text: string, imageUrl: string | null, spotifyUrl: string) => void;
-//   onClose: () => void; // دالة الإغلاق
+//   onClose: () => void; 
 // }
 
 // const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
@@ -23,7 +23,6 @@
 //   const [error, setError] = useState<string>("");
 //   const inputRef = useRef<HTMLInputElement>(null);
 
-//   // Automatically focus on the input when the component mounts
 //   useEffect(() => {
 //     if (inputRef.current) {
 //       inputRef.current.focus();
@@ -33,9 +32,11 @@
 //   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 //     if (e.target.files && e.target.files.length > 0) {
 //       const file = e.target.files[0];
+//       if (file.size > 5 * 1024 * 1024) { // 5MB الحد الأقصى للحجم
+//         setError("حجم الصورة كبير جدًا! الحد الأقصى 5MB.");
+//         return;
+//       }
 //       setImageFile(file);
-
-//       // عرض معاينة الصورة
 //       const reader = new FileReader();
 //       reader.onloadend = () => {
 //         const result = reader.result;
@@ -50,30 +51,30 @@
 //   const handleSubmit = async (e: React.FormEvent) => {
 //     e.preventDefault();
 //     setIsLoading(true);
-//     setError(""); // مسح الأخطاء السابقة
+//     setError(""); 
 
 //     try {
 //       let uploadedImageUrl = null;
 
-//       // رفع الصورة إلى Firebase Storage
 //       if (imageFile) {
 //         const filePath = `images/${auth.currentUser?.uid}/${imageFile.name}`;
 //         const storageRef = ref(storage, filePath);
-
 //         await uploadBytes(storageRef, imageFile);
 //         uploadedImageUrl = await getDownloadURL(storageRef);
 //       }
 
-//       // استدعاء دالة onSubmit مع البيانات
-//       onSubmit(text, uploadedImageUrl, spotifyUrl);
+//       // تحقق من صحة رابط سبوتيفاي
+//       if (spotifyUrl && !spotifyUrl.includes("spotify.com")) {
+//         setError("رابط سبوتيفاي غير صحيح!");
+//         setIsLoading(false);
+//         return;
+//       }
 
-//       // مسح الحقول بعد الإرسال
+//       onSubmit(text, uploadedImageUrl, spotifyUrl);
 //       setText("");
 //       setImageFile(null);
 //       setImageUrl(null);
 //       setSpotifyUrl("");
-
-//       // إغلاق النموذج بعد الإرسال
 //       onClose();
 //     } catch (error) {
 //       console.error("Error submitting form: ", error);
@@ -85,14 +86,14 @@
 
 //   return (
 //     <form
-//       className="top-0 left-0 h-full p-6 bg-gray-100 shadow-lg rounded-2xl flex fixed flex-col items-center w-full max-w-sm"
+//       className=" z-20 h-full p-6 bg-gray-100 shadow-lg rounded-2xl flex fixed flex-col items-center w-full max-w-sm"
 //       onSubmit={handleSubmit}
 //     >
 //       <div className="flex-col justify-between">
 //         <button
 //           aria-label="Close form"
 //           className="absolute top-5 left-1.5 text-gray-400 transition-colors hover:text-gray-600 focus:outline-none"
-//           onClick={onClose} // استدعاء دالة onClose عند النقر
+//           onClick={onClose} 
 //         >
 //           <RiCloseLargeFill className="w-6 h-6" />
 //         </button>
@@ -100,15 +101,17 @@
 
 //       <h2 className="text-xl mt-2 font-semibold mb-4">What's happening?</h2>
 
-//       {/* عرض الصورة المرفوعة أعلى المدخلات */}
 //       {imageUrl && (
 //         <div className="w-full mb-4">
-//           <img src={imageUrl} alt="preview" className="w-full h-auto object-cover rounded-lg" />
-//         </div>
+// <img
+//   src={imageUrl}
+//   alt="preview"
+//   className="w-full h-auto max-h-80 object-cover rounded-lg"
+// />  </div>
 //       )}
 
 //       <input
-//         ref={inputRef} // Attach the ref to the input field
+//         ref={inputRef}
 //         className="w-full p-4 rounded-lg hover:border-gray-400 focus:outline-none focus:border-pink-500 transition"
 //         type="text"
 //         placeholder="What's up?"
@@ -116,7 +119,6 @@
 //         onChange={(e) => setText(e.target.value)}
 //       />
 
-//       {/* هنا نضع الزر لرفع الصورة وسبوتيفاي تحت المعاينة */}
 //       <div className="flex bg-gray-500 w-full items-center gap-3 p-2 rounded-lg shadow-sm border border-gray-300 mt-4">
 //         {!imageUrl && (
 //           <label className="cursor-pointer hover:text-gray-600 transition">
@@ -131,7 +133,6 @@
 //           </label>
 //         )}
 
-//         {/* زر سبوتيفاي + إدخال الرابط */}
 //         <div className="flex items-center gap-2 flex-1">
 //           <SpotifyInput
 //             spotifyUrl={spotifyUrl}
@@ -152,161 +153,229 @@
 //   );
 // };
 
+
 // export default FormToPost;
 
 
 
 
+
+
+
+
+
 import React, { useEffect, useRef, useState } from "react";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { storage } from "./firebase"; 
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { storage, auth } from "./firebase";
 import { RiCloseLargeFill } from "react-icons/ri";
-import { auth } from "./firebase"; 
-import SpotifyInput from "./Spotfiy";
 import { BiSolidImageAdd } from "react-icons/bi";
 import { BsSendFill } from "react-icons/bs";
+import { FaSpotify } from "react-icons/fa";
 
 interface FormToPostProps {
   onSubmit: (text: string, imageUrl: string | null, spotifyUrl: string) => void;
-  onClose: () => void; 
+  onClose: () => void;
 }
 
 const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
-  const [text, setText] = useState<string>("");
+  const [text, setText] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [spotifyUrl, setSpotifyUrl] = useState<string>("");
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string>("");
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [spotifyUrl, setSpotifyUrl] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [error, setError] = useState("");
+  const [isSpotifyOpen, setIsSpotifyOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);  // إضافة القفل
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.focus();
-    }
+    inputRef.current?.focus();
   }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
+    if (e.target.files?.length) {
       const file = e.target.files[0];
-      if (file.size > 5 * 1024 * 1024) { // 5MB الحد الأقصى للحجم
+      if (file.size > 5 * 1024 * 1024) {
         setError("حجم الصورة كبير جدًا! الحد الأقصى 5MB.");
         return;
       }
       setImageFile(file);
       const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result;
-        if (typeof result === "string") {
-          setImageUrl(result);
-        }
-      };
+      reader.onloadend = () => setImageUrl(reader.result as string);
       reader.readAsDataURL(file);
+    }
+  };
+
+  const handleImageRemove = () => {
+    setImageFile(null);
+    setImageUrl(null);
+  };
+
+  const handleSpotifyToggle = () => {
+    setIsSpotifyOpen((prev) => !prev);
+    if (isSpotifyOpen) {
+      setSpotifyUrl("");
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isSubmitting) return;  // إذا كان هناك إرسال قيد التنفيذ، لا تقم بالإرسال مرة أخرى
+
+    setIsSubmitting(true);  // تفعيل القفل
     setIsLoading(true);
-    setError(""); 
+    setError("");
 
     try {
-      let uploadedImageUrl = null;
+      let uploadedImageUrl = imageUrl;
 
       if (imageFile) {
         const filePath = `images/${auth.currentUser?.uid}/${imageFile.name}`;
         const storageRef = ref(storage, filePath);
-        await uploadBytes(storageRef, imageFile);
-        uploadedImageUrl = await getDownloadURL(storageRef);
-      }
+        const uploadTask = uploadBytesResumable(storageRef, imageFile);
 
-      // تحقق من صحة رابط سبوتيفاي
-      if (spotifyUrl && !spotifyUrl.includes("spotify.com")) {
-        setError("رابط سبوتيفاي غير صحيح!");
-        setIsLoading(false);
-        return;
+        uploadTask.on(
+          "state_changed",
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            setProgress(progress);
+          },
+          (error) => {
+            console.error(error);
+            setError("حدث خطأ أثناء التحميل. الرجاء المحاولة مرة أخرى.");
+            setIsLoading(false);
+            setIsSubmitting(false);  // إلغاء القفل في حالة الخطأ
+          },
+          async () => {
+            uploadedImageUrl = await getDownloadURL(storageRef);
+            await onSubmit(text, uploadedImageUrl, spotifyUrl);  // تأكد من أن العملية تنتظر الإرسال
+            resetForm();
+          }
+        );
+      } else {
+        await onSubmit(text, uploadedImageUrl, spotifyUrl);  // تأكد من أن العملية تنتظر الإرسال
+        resetForm();
       }
-
-      onSubmit(text, uploadedImageUrl, spotifyUrl);
-      setText("");
-      setImageFile(null);
-      setImageUrl(null);
-      setSpotifyUrl("");
-      onClose();
-    } catch (error) {
-      console.error("Error submitting form: ", error);
+    } catch {
       setError("حدث خطأ أثناء إرسال النموذج. الرجاء المحاولة مرة أخرى.");
-    } finally {
       setIsLoading(false);
+      setIsSubmitting(false);  // إلغاء القفل في حالة الخطأ
     }
   };
 
+  const resetForm = () => {
+    setText("");
+    setImageFile(null);
+    setImageUrl(null);
+    setSpotifyUrl("");
+    onClose();
+    setIsLoading(false);
+    setIsSubmitting(false);  // إلغاء القفل بعد إعادة تعيين النموذج
+  };
+
+  const isSubmitDisabled = isLoading || (!text.trim() && !imageFile && !spotifyUrl.trim());
+
   return (
-    <form
-      className="top-0 left-0 h-full p-6 bg-gray-100 shadow-lg rounded-2xl flex fixed flex-col items-center w-full max-w-sm"
-      onSubmit={handleSubmit}
-    >
-      <div className="flex-col justify-between">
+    <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50 modal">
+      <form
+        className="bg-white shadow-2xl rounded-3xl p-6 w-full max-w-md flex flex-col relative transition-all duration-500 ease-in-out transform hover:scale-105"
+        onSubmit={handleSubmit}
+      >
+        {isLoading && (
+          <div className="progress-bar animate-pulse">
+            <div
+              className="progress bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500"
+              style={{ width: `${progress}%` }}
+            ></div>
+          </div>
+        )}
+
         <button
           aria-label="Close form"
-          className="absolute top-5 left-1.5 text-gray-400 transition-colors hover:text-gray-600 focus:outline-none"
-          onClick={onClose} 
+          className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 hover:scale-110 transition-all"
+          onClick={onClose}
         >
           <RiCloseLargeFill className="w-6 h-6" />
         </button>
-      </div>
 
-      <h2 className="text-xl mt-2 font-semibold mb-4">What's happening?</h2>
+        <h2 className="text-2xl font-semibold text-gray-800 text-center mb-4">ماذا يجول في خاطرك؟</h2>
 
-      {imageUrl && (
-        <div className="w-full mb-4">
-<img
-  src={imageUrl}
-  alt="preview"
-  className="w-full h-auto max-h-80 object-cover rounded-lg"
-/>  </div>
-      )}
-
-      <input
-        ref={inputRef}
-        className="w-full p-4 rounded-lg hover:border-gray-400 focus:outline-none focus:border-pink-500 transition"
-        type="text"
-        placeholder="What's up?"
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-      />
-
-      <div className="flex bg-gray-500 w-full items-center gap-3 p-2 rounded-lg shadow-sm border border-gray-300 mt-4">
-        {!imageUrl && (
-          <label className="cursor-pointer hover:text-gray-600 transition">
-            <BiSolidImageAdd className="text-white text-2xl" />
-            <input
-              type="file"
-              className="hidden"
-              onChange={handleFileChange}
-              accept="image/*, video/*"
-              aria-label="image"
-            />
-          </label>
+        {imageUrl && (
+          <div className="relative w-full mb-4 rounded-lg overflow-hidden shadow-lg hover:scale-105 transition-all">
+            <img src={imageUrl} alt="preview" className="w-full h-auto max-h-80 object-cover" />
+            <button
+              className="absolute top-2 right-2 bg-white text-gray-500 rounded-full p-2 hover:bg-gray-200 shadow-md hover:scale-110 transition-all"
+              onClick={handleImageRemove}
+            >
+              <RiCloseLargeFill className="w-5 h-5" />
+            </button>
+          </div>
         )}
 
-        <div className="flex items-center gap-2 flex-1">
-          <SpotifyInput
-            spotifyUrl={spotifyUrl}
-            setSpotifyUrl={setSpotifyUrl}
-          />
+        <textarea
+          ref={inputRef}
+          className="w-full p-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 mb-4 text-lg placeholder-gray-400 transition-all"
+          placeholder="اكتب شيئًا..."
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
+
+        <div className="flex gap-4 mb-4 items-center justify-between">
+          {!isSpotifyOpen && (
+            <button
+              type="button"
+              className="text-3xl text-green-500 hover:text-green-400 transform hover:scale-110 transition-all"
+              onClick={handleSpotifyToggle}
+            >
+              <FaSpotify />
+            </button>
+          )}
+
+          {isSpotifyOpen && (
+            <div className="flex gap-2 items-center transition-all duration-300 ease-in-out">
+              <input
+                type="text"
+                className="p-2 border-2 border-gray-300 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="أدخل رابط الأغنية"
+                value={spotifyUrl}
+                onChange={(e) => setSpotifyUrl(e.target.value)}
+              />
+              <button
+                type="button"
+                className="text-2xl text-red-500 hover:text-red-400"
+                onClick={handleSpotifyToggle}
+              >
+                <RiCloseLargeFill className="w-6 h-6" />
+              </button>
+            </div>
+          )}
+
+          {!imageUrl && (
+            <label className="cursor-pointer text-gray-600 hover:text-blue-500 transform hover:scale-105 transition-all">
+              <BiSolidImageAdd className="text-3xl" />
+              <input
+                type="file"
+                className="hidden"
+                onChange={handleFileChange}
+                accept="image/*, video/*"
+              />
+            </label>
+          )}
+
           <button
-            className="p-4 rounded-4xl bg-blue-500 text-white focus:outline-none focus:ring-2 focus:ring-gray-500 transition"
+            className="p-3 bg-blue-500 text-white rounded-lg flex items-center justify-center hover:bg-blue-600 hover:scale-105 transition flex-shrink-0"
             type="submit"
-            disabled={isLoading}
+            disabled={isSubmitDisabled}
           >
-            {isLoading ? "Submitting..." : <BsSendFill />}
+            {isLoading ? "جاري التحميل..." : <BsSendFill className="text-xl" />}
           </button>
         </div>
-      </div>
 
-      {error && <p className="text-red-500 text-sm mb-2">{error}</p>}
-    </form>
+        {error && <p className="text-red-500 text-sm mt-2 text-center">{error}</p>}
+      </form>
+    </div>
   );
 };
 

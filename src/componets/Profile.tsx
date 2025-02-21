@@ -611,7 +611,7 @@ const Profile: React.FC = () => {
       {showSettings && <Settings onClose={() => setShowSettings(false)} handleLogout={handleLogout} />}
 
       <button
-        className="bg-blue-500 text-white px-4 py-2 rounded-full hover:bg-blue-300 fixed bottom-5 right-6 transition mb-5"
+        className="bg-blue-500 z-10 text-white px-4 py-2 rounded-full hover:bg-blue-300 fixed bottom-5 right-6 transition mb-5"
         onClick={() => setShowForm(true)}
       >
         +

@@ -1,1 +1,32 @@
 @import "tailwindcss";
+/* إضافة تأثير انسيابي للفورم */
+@keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  
+  .modal {
+    animation: fadeIn 0.5s ease-in-out;
+  }
+  
+  /* شريط التحميل في الأعلى */
+  .progress-bar {
+    height: 4px;
+    background-color: #e0e0e0;
+    width: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+  }
+  
+  .progress {
+    height: 100%;
+    background-color: #4caf50;
+    width: 0; /* سيبدأ من 0 */
+    transition: width 0.5s ease-in-out;
+  }
+  
