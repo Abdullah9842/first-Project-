@@ -401,7 +401,7 @@ const Settings: React.FC<SettingsProps> = ({ userId, onClose, handleLogout }) =>
     if (!lastUsernameChange) return true;
     const now = new Date();
     const diffInDays = (now.getTime() - lastUsernameChange.getTime()) / (1000 * 60 * 60 * 24);
-    return diffInDays >= 14;
+    return diffInDays >= 0;
   };
 
   const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
