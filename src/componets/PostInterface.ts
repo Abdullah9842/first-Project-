@@ -20,13 +20,24 @@ export interface Posts {
   timestamp: number;
 }
 
+// export interface Post {
+//   image: string | null;
+//   text: string;
+//   id: string;
+//   liked: boolean;
+//   likeCount: number;
+//   mediaUrl?: string;
+//   userId?: string; // اختيارية
+//   timestamp: number;
+// }
+
 export interface Post {
-  image: string | null;
-  text: string;
   id: string;
+  text: string;
+  image: string | null;
   liked: boolean;
   likeCount: number;
   mediaUrl?: string;
-  userId?: string; // اختيارية
-  timestamp: number;
+  userId: string; // Required
+  timestamp?: number; // Optional
 }

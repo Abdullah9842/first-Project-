@@ -163,6 +163,138 @@
 // export default PostCard;
 
 
+// import React, { useEffect, useState } from "react";
+// import { AiFillDelete } from "react-icons/ai";
+// import { FaHeart, FaRegHeart } from "react-icons/fa";
+// import { deleteDoc, doc, getDoc } from "firebase/firestore";
+// import { db } from "./firebase";
+// import "../index.css";
+
+// interface Posts {
+//   image: string | null;
+//   text: string;
+//   id: string;
+//   liked: boolean;
+//   likeCount: number;
+//   mediaUrl?: string;
+//   userId: string;
+//   comments?: string[];
+// }
+
+// interface PostCardProps {
+//   post: Posts;
+//   onDelete: (id: string) => void;
+//   onLike: (id: string) => void;
+// }
+
+// const PostCard: React.FC<PostCardProps> = ({ post, onDelete, onLike }) => {
+//   interface User {
+//     name: string;
+//     photoURL: string;
+//   }
+
+//   const [user, setUser] = useState<User | null>(null);
+
+//   useEffect(() => {
+//     const fetchUser = async () => {
+//       try {
+//         const userDocRef = doc(db, "Users", post.userId);
+//         const userDoc = await getDoc(userDocRef);
+//         if (userDoc.exists()) {
+//           setUser(userDoc.data() as User);
+//         }
+//       } catch (error) {
+//         console.error("Error fetching user data: ", error);
+//       }
+//     };
+
+//     fetchUser();
+//   }, [post.userId]);
+
+//   const handleDelete = async (id: string) => {
+//     try {
+//       const postDocRef = doc(db, "Posts", id);
+//       await deleteDoc(postDocRef);
+//       console.log("Post deleted from Firestore:", id);
+//       onDelete(id);
+//     } catch (error) {
+//       console.error("Error deleting document: ", error);
+//     }
+//   };
+
+
+//   if (!user) {
+//     return null; // Optionally, you can show a loading spinner here.
+//   }
+
+//   return (
+//     <div className="bg-gray-400 shadow-lg items-center  rounded-xl w-full overflow-hidden relative transition-all hover:shadow-xl border border-gray-100">
+//       {/* Header with Profile Image and Username */}
+//       <div className="flex items-center p-4 border-gray-100">
+//         <img
+//           src={user.photoURL || "https://via.placeholder.com/40"}
+//           alt="Profile"
+//           className=" w-10 h-10 rounded-full object-cover"
+//         />
+//         <span className="ml-3 font-medium text-gray-800">{user.name || "Unknown User"}</span>
+//       </div>
+
+//       {/* Image or Video */}
+//       {post.mediaUrl && /\.(mov|mp4)$/i.test(post.mediaUrl) ? (
+//         <video controls className="w-full object-cover">
+//           <source src={post.mediaUrl} type="video/mp4" />
+//           <source src={post.mediaUrl} type="video/quicktime" />
+//           Your browser does not support this video.
+//         </video>
+//       ) : post.image ? (
+//         <img
+//           src={post.image ?? undefined}
+//           alt="User Upload"
+//           className="w-full object-cover"
+//         />
+//       ) : null}
+
+//       {/* Post Content */}
+//       <div className="p-4">
+//         {/* Post Text */}
+//         <p className="text-gray-800 text-lg font-medium leading-relaxed mb-1">
+//           {post.text}
+//         </p>
+
+//         {/* Action Buttons */}
+//         <div className="flex justify-between items-center  border-gray-100 ">
+//           <div className="flex items-center space-x-4">
+//             <button
+//               aria-label="Like post"
+//               onClick={() => onLike(post.id)}
+//               className="flex items-center text-gray-500 hover:text-red-500 transition-all p-2 rounded-full hover:bg-red-50"
+//             >
+//               {post.liked ? <FaHeart className="text-red-500" /> : <FaRegHeart />}
+//               <span className="ml-2 text-sm font-medium">{post.likeCount}</span>
+//             </button>
+           
+//           </div>
+//           <button
+//             aria-label="Delete post"
+//             className="text-gray-500 hover:text-red-600 transition-all p-2 rounded-full hover:bg-red-50"
+//             onClick={() => handleDelete(post.id)}
+//           >
+//             <AiFillDelete size={20} />
+//           </button>
+//         </div>
+
+  
+
+     
+//       </div>
+//     </div>
+//   );
+// };
+
+// export default PostCard;
+
+
+
 import React, { useEffect, useState } from "react";
 import { AiFillDelete } from "react-icons/ai";
 import { FaHeart, FaRegHeart } from "react-icons/fa";
@@ -187,13 +319,15 @@ interface PostCardProps {
   onLike: (id: string) => void;
 }
 
-const PostCard: React.FC<PostCardProps> = ({ post, onDelete, onLike }) => {
-  interface User {
-    name: string;
-    photoURL: string;
-  }
+interface User {
+  name: string;
+  photoURL: string;
+}
 
+const PostCard: React.FC<PostCardProps> = React.memo(({ post, onDelete, onLike }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -202,9 +336,14 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete, onLike }) => {
         const userDoc = await getDoc(userDocRef);
         if (userDoc.exists()) {
           setUser(userDoc.data() as User);
+        } else {
+          setError("User not found");
         }
       } catch (error) {
         console.error("Error fetching user data: ", error);
+        setError("Failed to load user data");
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -219,22 +358,30 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete, onLike }) => {
       onDelete(id);
     } catch (error) {
       console.error("Error deleting document: ", error);
+      setError("Failed to delete post");
     }
   };
 
+  if (loading) {
+    return <div className="text-center py-4">Loading...</div>; // عرض حالة التحميل
+  }
+
+  if (error) {
+    return <div className="text-center py-4 text-red-500">{error}</div>; // عرض رسالة الخطأ
+  }
 
   if (!user) {
-    return null; // Optionally, you can show a loading spinner here.
+    return null; // يمكن استبدال هذا بعرض رسالة "User not found"
   }
 
   return (
-    <div className="bg-gray-400 shadow-lg items-center  rounded-xl w-full overflow-hidden relative transition-all hover:shadow-xl border border-gray-100">
+    <div className="bg-gray-400 shadow-lg items-center rounded-xl w-full overflow-hidden relative transition-all hover:shadow-xl border border-gray-100">
       {/* Header with Profile Image and Username */}
       <div className="flex items-center p-4 border-gray-100">
         <img
           src={user.photoURL || "https://via.placeholder.com/40"}
           alt="Profile"
-          className=" w-10 h-10 rounded-full object-cover"
+          className="w-10 h-10 rounded-full object-cover"
         />
         <span className="ml-3 font-medium text-gray-800">{user.name || "Unknown User"}</span>
       </div>
@@ -262,7 +409,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete, onLike }) => {
         </p>
 
         {/* Action Buttons */}
-        <div className="flex justify-between items-center  border-gray-100 ">
+        <div className="flex justify-between items-center border-gray-100">
           <div className="flex items-center space-x-4">
             <button
               aria-label="Like post"
@@ -272,7 +419,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete, onLike }) => {
               {post.liked ? <FaHeart className="text-red-500" /> : <FaRegHeart />}
               <span className="ml-2 text-sm font-medium">{post.likeCount}</span>
             </button>
-           
           </div>
           <button
             aria-label="Delete post"
@@ -282,13 +428,9 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete, onLike }) => {
             <AiFillDelete size={20} />
           </button>
         </div>
-
-  
-
-     
       </div>
     </div>
   );
-};
+});
 
 export default PostCard;
