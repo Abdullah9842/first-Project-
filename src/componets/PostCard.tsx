@@ -1,136 +1,53 @@
 
 
-
-
-// import React from "react";
+// import React, { useEffect, useState } from "react";
 // import { AiFillDelete } from "react-icons/ai";
-// import { FaHeart, FaRegHeart } from "react-icons/fa";
-// import { deleteDoc, doc } from "firebase/firestore";
-// import { db } from "./firebase"; // تأكد من استيراد Firestore
-// import "../index.css";
-
-
-// interface Post {
-//   image: string | null;
-//   text: string;
-//   id: string; // تغيير النوع إلى string لأن Firestore يستخدم معرفات نصية
-//   liked: boolean;
-//   likeCount: number;
-//   mediaUrl?: string;
-// }
-
-// interface PostCardProps {
-//   post: Post;
-//   onDelete: (id: string) => void;
-//   onLike: (id: string) => void;
-// }
-
-// const PostCard: React.FC<PostCardProps> = ({ post, onDelete, onLike }) => {
-//   const isSpotifyUrl = (url: string): boolean => {
-//     return url.includes("open.spotify.com");
-//   };
-
-//   const handleDelete = async (id: string) => {
-//     try {
-//       const postDocRef = doc(db, "Posts", id);
-//       await deleteDoc(postDocRef); // حذف من Firestore
-//       console.log("Post deleted from Firestore:", id); // تأكيد الحذف
-//       onDelete(id); // تحديث الواجهة
-//     } catch (error) {
-//       console.error("Error deleting document: ", error);
-//     }
-//   };
-
-//   return (
-//       <div className="bg-gray-400 p-4 shadow-lg rounded-lg w-full max-w-lg">
-// {/* <div className="card p-4 shadow-lg rounded-lg w-full max-w-lg"> */}
-
-//       {/* تحقق من وجود الصورة أو الفيديو قبل العرض */}
-//       {post.mediaUrl && /\.(mov|mp4)$/i.test(post.mediaUrl) ? (
-//         <video controls className="w-full h-auto rounded-lg mb-3">
-//           <source src={post.mediaUrl} type="video/mp4" />
-//           <source src={post.mediaUrl} type="video/quicktime" />
-//           متصفحك لا يدعم تشغيل هذا الفيديو.
-//         </video>
-//       ) : post.image ? (
-//         <img src={post.image} alt="User Upload" className="w-full h-auto rounded-lg mb-3" />
-//       ) : null} {/* إذا لم تكن هناك صورة أو فيديو، لا تعرض شيئًا */}
-
-//       <p className="text-base text-white">{post.text}</p>
-
-//       {/* إذا كان الرابط يشير إلى Spotify */}
-//       {post.mediaUrl && isSpotifyUrl(post.mediaUrl) && (
-//         <iframe
-//           src={`https://open.spotify.com/embed/track/${post.mediaUrl.split('/').pop()}`}
-//           className="w-full h-24 md:h-32 lg:h-40 rounded-lg"
-//           allow="encrypted-media"
-//         ></iframe>
-//       )}
-
-//       {/* إذا كان الرابط ليس Spotify، عرض الرابط العادي */}
-//       {post.mediaUrl && !isSpotifyUrl(post.mediaUrl) && (
-//         <a
-//           href={post.mediaUrl}
-//           target="_blank"
-//           rel="noopener noreferrer"
-//           className="text-blue-500 hover:underline"
-//         >
-//           {post.mediaUrl}
-//         </a>
-//       )}
-
-//       <div className="flex justify-between items-center mt-0 mb-0">
-//         {/* زر الحذف */}
-//         <button
-//           aria-label="Delete post"
-//           className="text-gray-500 hover:text-black transition"
-//           onClick={() => handleDelete(post.id)}
-//         >
-//           <AiFillDelete />
-//         </button>
-//         {/* زر الإعجاب */}
-//         <button
-//           aria-label="Like post"
-//           onClick={() => onLike(post.id)}
-//           className="text-gray-500 hover:text-red-500 transition"
-//         >
-//           {post.liked ? <FaHeart /> : <FaRegHeart />} {post.likeCount}
-//         </button>
-//       </div>
-//     </div>
-//   );
-// };
-
-// export default PostCard;
-
-
-
-// import React from "react";
-// import { AiFillDelete } from "react-icons/ai";
-// import { FaHeart, FaRegHeart } from "react-icons/fa";
-// import { deleteDoc, doc } from "firebase/firestore";
+// import { FaHeart, FaRegHeart, FaComment } from "react-icons/fa";
+// import { deleteDoc, doc, getDoc } from "firebase/firestore";
 // import { db } from "./firebase";
 // import "../index.css";
 
-// interface Post {
+// interface Posts {
 //   image: string | null;
 //   text: string;
 //   id: string;
 //   liked: boolean;
 //   likeCount: number;
 //   mediaUrl?: string;
+//   userId: string;
+//   comments?: string[];
 // }
 
 // interface PostCardProps {
-//   post: Post;
+//   post: Posts;
 //   onDelete: (id: string) => void;
 //   onLike: (id: string) => void;
+//   onComment: (id: string, comment: string) => void;
 // }
 
-// const PostCard: React.FC<PostCardProps> = ({ post, onDelete, onLike }) => {
-//   const isSpotifyUrl = (url: string): boolean => {
-//     return url.includes("open.spotify.com");
-//   };
+// const PostCard: React.FC<PostCardProps> = ({ post, onDelete, onLike, onComment }) => {
+//   interface User {
+//     name: string;
+//     photoURL: string;
+//   }
+
+//   const [user, setUser] = useState<User | null>(null);
+
+//   useEffect(() => {
+//     const fetchUser = async () => {
+//       try {
+//         const userDocRef = doc(db, "Users", post.userId);
+//         const userDoc = await getDoc(userDocRef);
+//         if (userDoc.exists()) {
+//           setUser(userDoc.data() as User);
+//         }
+//       } catch (error) {
+//         console.error("Error fetching user data: ", error);
+//       }
+//     };
+
+//     fetchUser();
+//   }, [post.userId]);
 
 //   const handleDelete = async (id: string) => {
 //     try {
@@ -143,78 +60,113 @@
 //     }
 //   };
 
+//   const handleAddComment = (e: React.FormEvent<HTMLFormElement>) => {
+//     e.preventDefault();
+//     const commentInput = e.currentTarget.elements.namedItem("comment") as HTMLInputElement;
+//     const comment = commentInput.value.trim();
+//     if (comment) {
+//       onComment(post.id, comment);
+//       commentInput.value = "";
+//     }
+//   };
+
+//   if (!user) {
+//     return null; // Optionally, you can show a loading spinner here.
+//   }
+
 //   return (
-//     <div className="bg-white p-5 shadow-md rounded-xl w-full max-w-lg overflow-hidden relative transition-all hover:shadow-lg">
-//   {/* صورة أو فيديو */}
-//   {post.mediaUrl && /\.(mov|mp4)$/i.test(post.mediaUrl) ? (
-//     <video controls className="w-full h-56 object-cover rounded-lg mb-4">
-//       <source src={post.mediaUrl} type="video/mp4" />
-//       <source src={post.mediaUrl} type="video/quicktime" />
-//       متصفحك لا يدعم تشغيل هذا الفيديو.
-//     </video>
-//   ) : post.image ? (
-//     <img src={post.image ?? undefined} alt="User Upload" className="w-full h-56 object-cover rounded-lg mb-4" />
-//   ) : null}
+//     <div className="bg-white shadow-lg rounded-xl w-full overflow-hidden relative transition-all hover:shadow-xl border border-gray-100">
+//       {/* Header with Profile Image and Username */}
+//       <div className="flex items-center p-4 border-b border-gray-100">
+//         <img
+//           src={user.photoURL || "https://via.placeholder.com/40"}
+//           alt="Profile"
+//           className="w-10 h-10 rounded-full object-cover"
+//         />
+//         <span className="ml-3 font-medium text-gray-800">{user.name || "Unknown User"}</span>
+//       </div>
 
-//   {/* النص */}
-//   <p className="text-gray-800 text-lg font-medium leading-relaxed">{post.text}</p>
+//       {/* Image or Video */}
+//       {post.mediaUrl && /\.(mov|mp4)$/i.test(post.mediaUrl) ? (
+//         <video controls className="w-full object-cover">
+//           <source src={post.mediaUrl} type="video/mp4" />
+//           <source src={post.mediaUrl} type="video/quicktime" />
+//           Your browser does not support this video.
+//         </video>
+//       ) : post.image ? (
+//         <img
+//           src={post.image ?? undefined}
+//           alt="User Upload"
+//           className="w-full object-cover"
+//         />
+//       ) : null}
 
-//   {/* Spotify Embed */}
-//   {post.mediaUrl && isSpotifyUrl(post.mediaUrl) && (
-//     <iframe
-//       src={`https://open.spotify.com/embed/track/${post.mediaUrl.split("/").pop()}`}
-//       className="w-full h-24 md:h-32 lg:h-40 rounded-lg mt-3"
-//       allow="encrypted-media"
-//     ></iframe>
-//   )}
+//       {/* Post Content */}
+//       <div className="p-4">
+//         {/* Post Text */}
+//         <p className="text-gray-800 text-lg font-medium leading-relaxed mb-4">
+//           {post.text}
+//         </p>
 
-//   {/* رابط خارجي إن لم يكن Spotify */}
-//   {post.mediaUrl && !isSpotifyUrl(post.mediaUrl) && (
-//     <a
-//       href={post.mediaUrl}
-//       target="_blank"
-//       rel="noopener noreferrer"
-//       className="text-blue-500 hover:underline block mt-3"
-//     >
-//       {post.mediaUrl}
-//     </a>
-//   )}
+//         {/* Action Buttons */}
+//         <div className="flex justify-between items-center border-t border-gray-100 pt-4">
+//           <div className="flex items-center space-x-4">
+//             <button
+//               aria-label="Like post"
+//               onClick={() => onLike(post.id)}
+//               className="flex items-center text-gray-500 hover:text-red-500 transition-all p-2 rounded-full hover:bg-red-50"
+//             >
+//               {post.liked ? <FaHeart className="text-red-500" /> : <FaRegHeart />}
+//               <span className="ml-2 text-sm font-medium">{post.likeCount}</span>
+//             </button>
+//             <button
+//               aria-label="Comment"
+//               className="flex items-center text-gray-500 hover:text-blue-500 transition-all p-2 rounded-full hover:bg-blue-50"
+//             >
+//               <FaComment />
+//               <span className="ml-2 text-sm font-medium">{post.comments?.length || 0}</span>
+//             </button>
+//           </div>
+//           <button
+//             aria-label="Delete post"
+//             className="text-gray-500 hover:text-red-600 transition-all p-2 rounded-full hover:bg-red-50"
+//             onClick={() => handleDelete(post.id)}
+//           >
+//             <AiFillDelete size={20} />
+//           </button>
+//         </div>
 
-//   {/* الأزرار */}
-//   <div className="flex justify-between items-center mt-4">
-//     <button
-//       aria-label="Delete post"
-//       className="text-gray-500 hover:text-red-600 transition-all p-2 rounded-full hover:bg-gray-100"
-//       onClick={() => handleDelete(post.id)}
-//     >
-//       <AiFillDelete size={20} />
-//     </button>
-    
-//     <button
-//       aria-label="Like post"
-//       onClick={() => onLike(post.id)}
-//       className="flex items-center text-gray-500 hover:text-red-500 transition-all p-2 rounded-full hover:bg-gray-100"
-//     >
-//       {post.liked ? <FaHeart className="text-red-500" /> : <FaRegHeart />} 
-//       <span className="ml-1">{post.likeCount}</span>
-//     </button>
-//   </div>
-// </div>
+//         {/* Comments Section */}
+//         <div className="mt-4">
+//           {post.comments?.map((comment, index) => (
+//             <div key={index} className="text-gray-700 text-sm mb-2">
+//               <span className="font-medium">{user.name || "User"}: </span>
+//               {comment}
+//             </div>
+//           ))}
+//         </div>
 
-    
-
-     
+//         {/* Add Comment Form */}
+//         <form onSubmit={handleAddComment} className="mt-4">
+//           <input
+//             type="text"
+//             name="comment"
+//             placeholder="Add a comment..."
+//             className="w-full p-2 border border-gray-200 rounded-lg focus:outline-none focus:border-blue-500"
+//           />
+//         </form>
+//       </div>
+//     </div>
 //   );
 // };
 
 // export default PostCard;
 
 
-
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { AiFillDelete } from "react-icons/ai";
 import { FaHeart, FaRegHeart } from "react-icons/fa";
-import { deleteDoc, doc } from "firebase/firestore";
+import { deleteDoc, doc, getDoc } from "firebase/firestore";
 import { db } from "./firebase";
 import "../index.css";
 
@@ -225,6 +177,8 @@ interface Posts {
   liked: boolean;
   likeCount: number;
   mediaUrl?: string;
+  userId: string;
+  comments?: string[];
 }
 
 interface PostCardProps {
@@ -234,10 +188,28 @@ interface PostCardProps {
 }
 
 const PostCard: React.FC<PostCardProps> = ({ post, onDelete, onLike }) => {
-  const isSpotifyUrl = (url: string): boolean => {
-    const spotifyPattern = /https:\/\/open.spotify.com\/(track|album|playlist|show)\/([a-zA-Z0-9]+)?/;
-    return spotifyPattern.test(url);
-  };
+  interface User {
+    name: string;
+    photoURL: string;
+  }
+
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const userDocRef = doc(db, "Users", post.userId);
+        const userDoc = await getDoc(userDocRef);
+        if (userDoc.exists()) {
+          setUser(userDoc.data() as User);
+        }
+      } catch (error) {
+        console.error("Error fetching user data: ", error);
+      }
+    };
+
+    fetchUser();
+  }, [post.userId]);
 
   const handleDelete = async (id: string) => {
     try {
@@ -250,61 +222,70 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete, onLike }) => {
     }
   };
 
+
+  if (!user) {
+    return null; // Optionally, you can show a loading spinner here.
+  }
+
   return (
-    <div className="bg-white p-5 shadow-md rounded-xl w-full max-w-lg overflow-hidden relative transition-all hover:shadow-lg">
+    <div className="bg-gray-400 shadow-lg items-center  rounded-xl w-full overflow-hidden relative transition-all hover:shadow-xl border border-gray-100">
+      {/* Header with Profile Image and Username */}
+      <div className="flex items-center p-4 border-gray-100">
+        <img
+          src={user.photoURL || "https://via.placeholder.com/40"}
+          alt="Profile"
+          className=" w-10 h-10 rounded-full object-cover"
+        />
+        <span className="ml-3 font-medium text-gray-800">{user.name || "Unknown User"}</span>
+      </div>
+
       {/* Image or Video */}
       {post.mediaUrl && /\.(mov|mp4)$/i.test(post.mediaUrl) ? (
-        <video controls className="w-full h-56 object-cover rounded-lg mb-4">
+        <video controls className="w-full object-cover">
           <source src={post.mediaUrl} type="video/mp4" />
           <source src={post.mediaUrl} type="video/quicktime" />
           Your browser does not support this video.
         </video>
       ) : post.image ? (
-        <img src={post.image ?? undefined} alt="User Upload" className="w-full h-56 object-cover rounded-lg mb-4" />
+        <img
+          src={post.image ?? undefined}
+          alt="User Upload"
+          className="w-full object-cover"
+        />
       ) : null}
 
-      {/* Post Text */}
-      <p className="text-gray-800 text-lg font-medium leading-relaxed">{post.text}</p>
+      {/* Post Content */}
+      <div className="p-4">
+        {/* Post Text */}
+        <p className="text-gray-800 text-lg font-medium leading-relaxed mb-1">
+          {post.text}
+        </p>
 
-      {/* Spotify Embed */}
-      {post.mediaUrl && isSpotifyUrl(post.mediaUrl) && (
-        <iframe
-          src={`https://open.spotify.com/embed/track/${post.mediaUrl.split("/").pop()}`}
-          className="w-full h-24 md:h-32 lg:h-40 rounded-lg mt-3"
-          allow="encrypted-media"
-        ></iframe>
-      )}
+        {/* Action Buttons */}
+        <div className="flex justify-between items-center  border-gray-100 ">
+          <div className="flex items-center space-x-4">
+            <button
+              aria-label="Like post"
+              onClick={() => onLike(post.id)}
+              className="flex items-center text-gray-500 hover:text-red-500 transition-all p-2 rounded-full hover:bg-red-50"
+            >
+              {post.liked ? <FaHeart className="text-red-500" /> : <FaRegHeart />}
+              <span className="ml-2 text-sm font-medium">{post.likeCount}</span>
+            </button>
+           
+          </div>
+          <button
+            aria-label="Delete post"
+            className="text-gray-500 hover:text-red-600 transition-all p-2 rounded-full hover:bg-red-50"
+            onClick={() => handleDelete(post.id)}
+          >
+            <AiFillDelete size={20} />
+          </button>
+        </div>
 
-      {/* External Link if not Spotify */}
-      {post.mediaUrl && !isSpotifyUrl(post.mediaUrl) && (
-        <a
-          href={post.mediaUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-blue-500 hover:underline block mt-3"
-        >
-          {post.mediaUrl}
-        </a>
-      )}
+  
 
-      {/* Action Buttons */}
-      <div className="flex justify-between items-center mt-4">
-        <button
-          aria-label="Delete post"
-          className="text-gray-500 hover:text-red-600 transition-all p-2 rounded-full hover:bg-gray-100"
-          onClick={() => handleDelete(post.id)}
-        >
-          <AiFillDelete size={20} />
-        </button>
-        
-        <button
-          aria-label="Like post"
-          onClick={() => onLike(post.id)}
-          className="flex items-center text-gray-500 hover:text-red-500 transition-all p-2 rounded-full hover:bg-gray-100"
-        >
-          {post.liked ? <FaHeart className="text-red-500" /> : <FaRegHeart />} 
-          <span className="ml-1">{post.likeCount}</span>
-        </button>
+     
       </div>
     </div>
   );

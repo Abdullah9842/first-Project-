@@ -1,6 +1,6 @@
 
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { getAuth, GoogleAuthProvider,onAuthStateChanged} from "firebase/auth";
 import { getStorage, FirebaseStorage } from "firebase/storage";
 import { getFirestore, Firestore } from "firebase/firestore";
 
@@ -31,4 +31,4 @@ const storage: FirebaseStorage = getStorage(app);
 
 // تصدير المتغيرات بحيث يمكن استخدامها في باقي أجزاء التطبيق
 export default app;
-export { auth, googleProvider, db, storage };
+export { auth, googleProvider, db, storage,onAuthStateChanged};

@@ -7,4 +7,3 @@ export interface Post {
     likeCount: number;
     spotifyUrl?: string;
   }
-  
