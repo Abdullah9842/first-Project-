@@ -450,24 +450,55 @@ const Settings: React.FC<SettingsProps> = ({ userId, onClose, handleLogout }) =>
     }
   };
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (!file.type.startsWith('image/')) {
-        setError('يرجى اختيار صورة فقط.');
-        return;
-      }
-      if (file.size > 5 * 1024 * 1024) {
-        setError('حجم الصورة أكبر من المسموح به (5MB).');
-        return;
-      }
+  // const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  //   const file = e.target.files?.[0];
+  //   if (file) {
+  //     if (!file.type.startsWith('image/')) {
+  //       setError('يرجى اختيار صورة فقط.');
+  //       return;
+  //     }
+  //     if (file.size > 5 * 1024 * 1024) {
+  //       setError('حجم الصورة أكبر من المسموح به (5MB).');
+  //       return;
+  //     }
 
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPhotoURL(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+  //     const reader = new FileReader();
+  //     reader.onloadend = () => {
+  //       setPhotoURL(reader.result as string);
+  //     };
+  //     reader.readAsDataURL(file);
+  //   }
+  // };
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; // الحصول على الملف المحدد
+  
+    if (!file) {
+      setError("لم يتم اختيار أي ملف.");
+      return;
     }
+  
+    // التحقق من نوع الملف (يجب أن يكون صورة)
+    if (!file.type.startsWith("image/")) {
+      setError("يرجى اختيار صورة فقط.");
+      return;
+    }
+  
+    // قراءة الملف وعرضه
+    const reader = new FileReader();
+    reader.onloadstart = () => {
+      setError(''); // إعادة تعيين رسالة الخطأ
+    };
+    reader.onloadend = () => {
+      if (reader.result) {
+        setPhotoURL(reader.result as string); // تعيين رابط الصورة
+      } else {
+        setError("فشل في قراءة الملف.");
+      }
+    };
+    reader.onerror = () => {
+      setError("حدث خطأ أثناء قراءة الملف.");
+    };
+    reader.readAsDataURL(file); // بدء قراءة الملف
   };
 
   return (
