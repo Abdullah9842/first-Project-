@@ -53,109 +53,136 @@ function Profile() {
   useEffect(() => {
     if (!userId) {
       setLoadingPosts(false);
+      setError("No user ID provided");
       return;
     }
 
     console.log("Starting posts fetch for user:", userId);
 
-    // 1. جلب منشورات المستخدم أولاً
-    const userPostsQuery = query(
-      collection(db, "posts"),
-      where("userId", "==", userId)
-    );
+    let allPosts: Post[] = [];
 
-    const unsubscribe = onSnapshot(
-      userPostsQuery,
-      async (snapshot) => {
-        console.log(`Received ${snapshot.docs.length} user posts`);
+    // 1. جلب منشورات المستخدم
+    const userPostsUnsubscribe = onSnapshot(
+      query(collection(db, "posts"), where("userId", "==", userId)),
+      (snapshot) => {
+        const userPosts = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          text: doc.data().text || "",
+          timestamp: doc.data().timestamp,
+          userId: doc.data().userId,
+          image: doc.data().image || null,
+          mediaUrl: doc.data().mediaUrl || "",
+          liked: Boolean(doc.data().liked),
+          likeCount: Number(doc.data().likeCount) || 0,
+          isOwnPost: true,
+          isFriendPost: false,
+        }));
 
-        // تجهيز منشورات المستخدم
-        const userPosts = snapshot.docs.map((doc) => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            text: data.text || "",
-            timestamp: data.timestamp,
-            userId: data.userId,
-            image: data.image || null,
-            mediaUrl: data.mediaUrl || "",
-            liked: Boolean(data.liked),
-            likeCount: Number(data.likeCount) || 0,
-            isOwnPost: true,
-            isFriendPost: false,
-          };
-        });
-
-        // 2. جلب قائمة الأصدقاء
-        try {
-          const friendsQuery = query(
-            collection(db, "Friends"),
-            where("userId1", "==", userId)
-          );
-          const friendsSnapshot = await getDocs(friendsQuery);
-          const friendsList = friendsSnapshot.docs.map(
-            (doc) => doc.data().userId2
-          );
-
-          console.log("Friends list:", friendsList);
-
-          // 3. جلب منشورات كل صديق على حدة
-          const friendsPosts = [];
-          for (const friendId of friendsList) {
-            const friendPostsQuery = query(
-              collection(db, "posts"),
-              where("userId", "==", friendId)
-            );
-
-            const friendPostsSnapshot = await getDocs(friendPostsQuery);
-            const posts = friendPostsSnapshot.docs.map((doc) => {
-              const data = doc.data();
-              return {
-                id: doc.id,
-                text: data.text || "",
-                timestamp: data.timestamp,
-                userId: data.userId,
-                image: data.image || null,
-                mediaUrl: data.mediaUrl || "",
-                liked: Boolean(data.liked),
-                likeCount: Number(data.likeCount) || 0,
-                isOwnPost: false,
-                isFriendPost: true,
-              };
-            });
-            friendsPosts.push(...posts);
-          }
-
-          console.log(`Retrieved ${friendsPosts.length} friends' posts`);
-
-          // 4. دمج وترتيب جميع المنشورات
-          const allPosts = [...userPosts, ...friendsPosts];
-          allPosts.sort((a, b) => {
-            const timeA = normalizeTimestamp(a.timestamp);
-            const timeB = normalizeTimestamp(b.timestamp);
-            return timeB - timeA;
-          });
-
-          console.log(
-            `Total posts after adding friends' posts: ${allPosts.length}`
-          );
-          setPosts(allPosts);
-        } catch (error) {
-          console.error("Error fetching friends posts:", error);
-          // في حالة الخطأ، نعرض منشورات المستخدم فقط
-          setPosts(userPosts);
-        }
-
-        setLoadingPosts(false);
+        allPosts = [...userPosts];
+        updatePosts();
       },
       (error) => {
         console.error("Error fetching user posts:", error);
-        setError("Failed to load posts");
-        setLoadingPosts(false);
+        setError("Failed to load user posts");
       }
     );
 
-    return () => unsubscribe();
+    // 2. جلب وتتبع قائمة الأصدقاء
+    const friendsUnsubscribe = onSnapshot(
+      query(collection(db, "Friends"), where("userId1", "==", userId)),
+      async (friendsSnapshot) => {
+        try {
+          const friendsList = friendsSnapshot.docs.map(
+            (doc) => doc.data().userId2
+          );
+          console.log("Friends list:", friendsList);
+
+          // محاولة جلب منشورات الأصدقاء باستخدام getDocs أولاً
+          for (const friendId of friendsList) {
+            const friendPostsSnapshot = await getDocs(
+              query(collection(db, "posts"), where("userId", "==", friendId))
+            );
+
+            const friendPosts = friendPostsSnapshot.docs.map((doc) => ({
+              id: doc.id,
+              text: doc.data().text || "",
+              timestamp: doc.data().timestamp,
+              userId: doc.data().userId,
+              image: doc.data().image || null,
+              mediaUrl: doc.data().mediaUrl || "",
+              liked: Boolean(doc.data().liked),
+              likeCount: Number(doc.data().likeCount) || 0,
+              isOwnPost: false,
+              isFriendPost: true,
+            }));
+
+            allPosts = allPosts.filter((post) => post.userId !== friendId);
+            allPosts = [...allPosts, ...friendPosts];
+            updatePosts();
+          }
+
+          // 3. إنشاء مستمعين لتحديثات منشورات الأصدقاء
+          const friendPostsUnsubscribes = friendsList.map((friendId) =>
+            onSnapshot(
+              query(collection(db, "posts"), where("userId", "==", friendId)),
+              (friendPostsSnapshot) => {
+                const friendPosts = friendPostsSnapshot.docs.map((doc) => ({
+                  id: doc.id,
+                  text: doc.data().text || "",
+                  timestamp: doc.data().timestamp,
+                  userId: doc.data().userId,
+                  image: doc.data().image || null,
+                  mediaUrl: doc.data().mediaUrl || "",
+                  liked: Boolean(doc.data().liked),
+                  likeCount: Number(doc.data().likeCount) || 0,
+                  isOwnPost: false,
+                  isFriendPost: true,
+                }));
+
+                allPosts = allPosts.filter((post) => post.userId !== friendId);
+                allPosts = [...allPosts, ...friendPosts];
+                updatePosts();
+              },
+              (error) => {
+                console.error(
+                  `Error fetching friend posts for ${friendId}:`,
+                  error
+                );
+                setError(`Failed to load posts for a friend`);
+              }
+            )
+          );
+
+          return () => {
+            friendPostsUnsubscribes.forEach((unsubscribe) => unsubscribe());
+          };
+        } catch (error) {
+          console.error("Error processing friends:", error);
+          setError("Failed to load friends' posts");
+        }
+      },
+      (error) => {
+        console.error("Error fetching friends list:", error);
+        setError("Failed to load friends list");
+      }
+    );
+
+    // دالة مساعدة لترتيب وتحديث المنشورات
+    const updatePosts = () => {
+      const sortedPosts = [...allPosts].sort((a, b) => {
+        const timeA = normalizeTimestamp(a.timestamp);
+        const timeB = normalizeTimestamp(b.timestamp);
+        return timeB - timeA;
+      });
+      setPosts(sortedPosts);
+      setLoadingPosts(false);
+    };
+
+    // تنظيف جميع المستمعين
+    return () => {
+      userPostsUnsubscribe();
+      friendsUnsubscribe();
+    };
   }, [userId]);
 
   const handleDelete = async (postId: string) => {
