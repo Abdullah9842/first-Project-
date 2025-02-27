@@ -229,7 +229,7 @@ const FriendSystem: React.FC = () => {
       await addDoc(collection(db, "Friends"), {
         userId1: request.senderId,
         userId2: request.receiverId,
-        friendshipDate: Timestamp.fromDate(new Date()),
+        friendshipDate: Timestamp.now(),
         status: "active",
       });
 

@@ -181,12 +181,20 @@ function Profile() {
 
         snapshot1.docs.forEach((doc) => {
           const data = doc.data();
-          friendsWithDates.set(data.userId2, data.friendshipDate.toDate());
+          const friendshipDate =
+            data.friendshipDate instanceof Timestamp
+              ? data.friendshipDate.toDate()
+              : new Date(data.friendshipDate || Date.now());
+          friendsWithDates.set(data.userId2, friendshipDate);
         });
 
         snapshot2.docs.forEach((doc) => {
           const data = doc.data();
-          friendsWithDates.set(data.userId1, data.friendshipDate.toDate());
+          const friendshipDate =
+            data.friendshipDate instanceof Timestamp
+              ? data.friendshipDate.toDate()
+              : new Date(data.friendshipDate || Date.now());
+          friendsWithDates.set(data.userId1, friendshipDate);
         });
 
         // Cleanup previous friend listeners
