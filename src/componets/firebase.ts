@@ -22,12 +22,16 @@ const firebaseConfig = {
 // تهيئة Firebase
 const app = initializeApp(firebaseConfig);
 
-// تهيئة Firestore مع إعدادات مخصصة
+// تهيئة Firestore مع إعدادات مخصصة لـ Safari
+const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+
 const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true,
+  experimentalForceLongPolling: isSafari, // تفعيل فقط في Safari
   localCache: persistentLocalCache({
     tabManager: persistentSingleTabManager({ forceOwnership: true })
-  })
+  }),
+  host: 'firestore.googleapis.com',
+  ssl: true
 });
 
 // تهيئة خدمات Firebase الأخرى
