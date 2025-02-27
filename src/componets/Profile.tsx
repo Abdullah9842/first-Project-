@@ -136,28 +136,23 @@ function Profile() {
               .map((doc) => {
                 try {
                   const postData = doc.data();
+                  console.log("Processing post:", {
+                    id: doc.id,
+                    userId: postData.userId,
+                    profileUserId: userId,
+                    isProfileUser: postData.userId === userId,
+                    text: postData.text,
+                  });
 
-                  // تحويل التاريخ بشكل صحيح
-                  let postTimestamp;
-                  if (postData.timestamp) {
-                    if (typeof postData.timestamp.toMillis === "function") {
-                      postTimestamp = postData.timestamp.toMillis();
-                    } else if (typeof postData.timestamp === "number") {
-                      postTimestamp = postData.timestamp;
-                    } else {
-                      console.log(
-                        "Invalid timestamp format:",
-                        postData.timestamp
-                      );
-                      postTimestamp = Date.now(); // استخدام الوقت الحالي كحل مؤقت
-                    }
-                  } else {
-                    postTimestamp = Date.now();
-                  }
+                  // تحويل التاريخ
+                  const postTimestamp =
+                    postData.timestamp?.toMillis?.() ||
+                    postData.timestamp ||
+                    Date.now();
 
-                  // إذا كان المنشور للمستخدم نفسه
+                  // إذا كنا في صفحة الملف الشخصي للمستخدم، نعرض منشوراته فقط
                   if (postData.userId === userId) {
-                    console.log("✅ User's own post:", doc.id);
+                    console.log("✅ Showing post for profile user:", doc.id);
                     return {
                       id: doc.id,
                       image: postData.image || null,
@@ -170,40 +165,11 @@ function Profile() {
                     };
                   }
 
-                  // للأصدقاء
-                  const friend = friendsList.find(
-                    (f) => f.userId === postData.userId
+                  // إذا لم يكن المنشور للمستخدم المطلوب، نتجاهله
+                  console.log(
+                    "❌ Skipping post - not for profile user:",
+                    doc.id
                   );
-                  if (friend) {
-                    let friendshipTimestamp;
-                    if (friend.friendshipDate instanceof Timestamp) {
-                      friendshipTimestamp = friend.friendshipDate.toMillis();
-                    } else if (typeof friend.friendshipDate === "number") {
-                      friendshipTimestamp = friend.friendshipDate;
-                    } else {
-                      console.log(
-                        "Invalid friendship date:",
-                        friend.friendshipDate
-                      );
-                      friendshipTimestamp = 0; // اظهار كل المنشورات للأصدقاء كحل مؤقت
-                    }
-
-                    // نظهر المنشور إذا كان تاريخ المنشور أحدث من تاريخ الصداقة
-                    if (postTimestamp >= friendshipTimestamp) {
-                      console.log("✅ Friend's post:", doc.id);
-                      return {
-                        id: doc.id,
-                        image: postData.image || null,
-                        text: postData.text,
-                        liked: postData.liked || false,
-                        likeCount: postData.likeCount || 0,
-                        mediaUrl: postData.mediaUrl,
-                        userId: postData.userId || "",
-                        timestamp: postTimestamp,
-                      };
-                    }
-                  }
-
                   return null;
                 } catch (error) {
                   console.error("Error processing post:", error);
@@ -212,7 +178,7 @@ function Profile() {
               })
               .filter((post) => post !== null);
 
-            console.log("Filtered posts count:", postsData.length);
+            console.log("Final posts count:", postsData.length);
             setPosts(postsData);
             setLoadingPosts(false);
           },
