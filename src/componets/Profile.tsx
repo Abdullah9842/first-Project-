@@ -14,6 +14,8 @@ import {
   updateDoc,
   orderBy,
   getDoc,
+  setDoc,
+  Timestamp,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import Settings from "./Settings";
@@ -24,13 +26,14 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Post } from "./PostInterface";
 import { FaUserFriends } from "react-icons/fa";
 import PostSkeleton from "./PostSkeleton";
-import { Timestamp } from "firebase/firestore";
 
 interface User {
+  userId: string;
   name: string;
-  username: string;
+  email?: string;
   photoURL: string;
-  // ... أي خصائص أخرى للمستخدم
+  username: string;
+  createdAt?: Timestamp;
 }
 
 function Profile() {
@@ -57,88 +60,90 @@ function Profile() {
   useEffect(() => {
     const fetchData = async () => {
       const user = auth.currentUser;
-      if (user) {
-        try {
-          console.log("Fetching data for user:", user.uid);
+      if (!user) {
+        console.log("No authenticated user found");
+        setLoadingPosts(false);
+        return;
+      }
 
-          // جلب بيانات الأصدقاء
-          const friendsQuery1 = query(
-            collection(db, "Friends"),
-            where("userId1", "==", user.uid)
-          );
-          const friendsQuery2 = query(
-            collection(db, "Friends"),
-            where("userId2", "==", user.uid)
-          );
+      try {
+        console.log("Starting data fetch for user:", user.uid);
 
-          const [friendsSnapshot1, friendsSnapshot2] = await Promise.all([
-            getDocs(friendsQuery1),
-            getDocs(friendsQuery2),
-          ]);
+        // جلب بيانات الأصدقاء
+        const friendsQuery1 = query(
+          collection(db, "Friends"),
+          where("userId1", "==", user.uid)
+        );
+        const friendsQuery2 = query(
+          collection(db, "Friends"),
+          where("userId2", "==", user.uid)
+        );
 
-          const friendsList = [
-            ...friendsSnapshot1.docs.map((doc) => ({
-              userId: doc.data().userId2,
-              friendshipDate: doc.data().friendshipDate || 0,
-            })),
-            ...friendsSnapshot2.docs.map((doc) => ({
-              userId: doc.data().userId1,
-              friendshipDate: doc.data().friendshipDate || 0,
-            })),
-          ];
+        console.log("Fetching friends data...");
+        const [friendsSnapshot1, friendsSnapshot2] = await Promise.all([
+          getDocs(friendsQuery1).catch((error) => {
+            console.error("Error fetching friends query 1:", error);
+            return { docs: [] };
+          }),
+          getDocs(friendsQuery2).catch((error) => {
+            console.error("Error fetching friends query 2:", error);
+            return { docs: [] };
+          }),
+        ]);
 
-          console.log("All friends list:", friendsList);
-          setFriendsCount(friendsList.length); // تحديث عدد الأصدقاء
+        const friendsList = [
+          ...friendsSnapshot1.docs.map((doc) => ({
+            userId: doc.data().userId2,
+            friendshipDate: doc.data().friendshipDate || 0,
+          })),
+          ...friendsSnapshot2.docs.map((doc) => ({
+            userId: doc.data().userId1,
+            friendshipDate: doc.data().friendshipDate || 0,
+          })),
+        ];
 
-          // جلب المنشورات
-          const postsQuery = query(
-            collection(db, "Posts"),
-            where("userId", "in", [
-              user.uid,
-              ...friendsList.map((friend) => friend.userId),
-            ]),
-            orderBy("timestamp", "desc"),
-            limit(10)
-          );
+        console.log("Friends list fetched:", friendsList);
+        setFriendsCount(friendsList.length);
 
-          const unsubscribe = onSnapshot(postsQuery, (snapshot) => {
+        // جلب المنشورات
+        const userAndFriendIds = [
+          user.uid,
+          ...friendsList.map((friend) => friend.userId),
+        ];
+        console.log("Fetching posts for users:", userAndFriendIds);
+
+        if (userAndFriendIds.length === 0) {
+          console.log("No users to fetch posts for");
+          setLoadingPosts(false);
+          return;
+        }
+
+        const postsQuery = query(
+          collection(db, "Posts"),
+          where("userId", "in", userAndFriendIds),
+          orderBy("timestamp", "desc"),
+          limit(10)
+        );
+
+        const unsubscribe = onSnapshot(
+          postsQuery,
+          (snapshot) => {
+            console.log(
+              "Posts snapshot received, docs count:",
+              snapshot.docs.length
+            );
             const postsData = snapshot.docs
               .map((doc) => {
-                const postData = doc.data();
-                const postTimestamp = postData.timestamp
-                  ? typeof postData.timestamp.toMillis === "function"
-                    ? postData.timestamp.toMillis()
-                    : postData.timestamp
-                  : 0;
+                try {
+                  const postData = doc.data();
+                  const postTimestamp = postData.timestamp
+                    ? typeof postData.timestamp.toMillis === "function"
+                      ? postData.timestamp.toMillis()
+                      : postData.timestamp
+                    : 0;
 
-                // إذا كان المنشور للمستخدم نفسه، اعرضه دائماً
-                if (postData.userId === user.uid) {
-                  return {
-                    id: doc.id,
-                    image: postData.image || null,
-                    text: postData.text,
-                    liked: postData.liked || false,
-                    likeCount: postData.likeCount || 0,
-                    mediaUrl: postData.mediaUrl,
-                    userId: postData.userId || "",
-                    timestamp: postTimestamp,
-                  };
-                }
-
-                // للأصدقاء، تحقق من تاريخ المنشور مقارنة بتاريخ الصداقة
-                const friend = friendsList.find(
-                  (f) => f.userId === postData.userId
-                );
-
-                if (friend) {
-                  // تحويل تاريخ الصداقة إلى milliseconds
-                  const friendshipTimestamp =
-                    friend.friendshipDate instanceof Timestamp
-                      ? friend.friendshipDate.toMillis()
-                      : friend.friendshipDate;
-
-                  // مقارنة التواريخ بعد تحويلها إلى milliseconds
-                  if (postTimestamp >= friendshipTimestamp) {
+                  // إذا كان المنشور للمستخدم نفسه، اعرضه دائماً
+                  if (postData.userId === user.uid) {
                     return {
                       id: doc.id,
                       image: postData.image || null,
@@ -150,23 +155,59 @@ function Profile() {
                       timestamp: postTimestamp,
                     };
                   }
-                }
 
-                return null; // تجاهل المنشورات التي لا تحقق الشروط
+                  // للأصدقاء، تحقق من تاريخ المنشور مقارنة بتاريخ الصداقة
+                  const friend = friendsList.find(
+                    (f) => f.userId === postData.userId
+                  );
+
+                  if (friend) {
+                    const friendshipTimestamp =
+                      friend.friendshipDate instanceof Timestamp
+                        ? friend.friendshipDate.toMillis()
+                        : friend.friendshipDate;
+
+                    if (postTimestamp >= friendshipTimestamp) {
+                      return {
+                        id: doc.id,
+                        image: postData.image || null,
+                        text: postData.text,
+                        liked: postData.liked || false,
+                        likeCount: postData.likeCount || 0,
+                        mediaUrl: postData.mediaUrl,
+                        userId: postData.userId || "",
+                        timestamp: postTimestamp,
+                      };
+                    }
+                  }
+
+                  return null;
+                } catch (error) {
+                  console.error("Error processing post doc:", error);
+                  return null;
+                }
               })
               .filter((post) => post !== null);
 
-            console.log("Filtered posts:", postsData);
+            console.log("Filtered posts count:", postsData.length);
             setPosts(postsData);
             setLoadingPosts(false);
-          });
+          },
+          (error) => {
+            console.error("Error in posts snapshot:", error);
+            setError("Failed to load posts. Please try again later.");
+            setLoadingPosts(false);
+          }
+        );
 
-          return () => unsubscribe(); // Cleanup function
-        } catch (error) {
-          console.error("Error fetching data: ", error);
-          setError("Failed to load posts. Please try again later.");
-          setLoadingPosts(false);
-        }
+        return () => {
+          console.log("Cleaning up posts subscription");
+          unsubscribe();
+        };
+      } catch (error) {
+        console.error("Error in fetchData:", error);
+        setError("Failed to load posts. Please try again later.");
+        setLoadingPosts(false);
       }
     };
 
@@ -175,22 +216,53 @@ function Profile() {
 
   useEffect(() => {
     const fetchUser = async () => {
-      if (!userId) return;
+      if (!userId) {
+        console.log("No userId provided");
+        setLoading(false);
+        return;
+      }
 
       try {
-        const userDoc = await getDoc(doc(db, "Users", userId));
-        if (userDoc.exists()) {
+        // تحقق من وجود المستخدم في Authentication
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
+          console.log("No authenticated user");
+          navigate("/login");
+          return;
+        }
+
+        // جلب بيانات المستخدم من مجموعة Users
+        const userDoc = await getDoc(doc(db, "Users", currentUser.uid));
+
+        if (!userDoc.exists()) {
+          // إذا لم يكن المستخدم موجوداً في مجموعة Users، قم بإنشائه
+          const newUser = {
+            userId: currentUser.uid,
+            name: currentUser.displayName || "مستخدم جديد",
+            email: currentUser.email,
+            photoURL: currentUser.photoURL || "/default-avatar.png",
+            username: currentUser.email?.split("@")[0] || "user" + Date.now(),
+            createdAt: Timestamp.now(),
+          };
+
+          // إضافة المستخدم إلى مجموعة Users
+          await setDoc(doc(db, "Users", currentUser.uid), newUser);
+          setUser(newUser as User);
+        } else {
+          // إذا كان المستخدم موجوداً، استخدم بياناته
           setUser(userDoc.data() as User);
         }
+
+        setLoading(false);
       } catch (error) {
         console.error("Error fetching user:", error);
-      } finally {
+        setError("Failed to load user data");
         setLoading(false);
       }
     };
 
     fetchUser();
-  }, [userId]);
+  }, [userId, navigate]);
 
   const handleSubmit = async (
     text: string,
