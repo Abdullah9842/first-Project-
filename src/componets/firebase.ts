@@ -2,10 +2,11 @@ import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, onAuthStateChanged, connectAuthEmulator } from "firebase/auth";
 import { getStorage, connectStorageEmulator } from "firebase/storage";
 import { 
-  initializeFirestore,
-  persistentLocalCache,
-  persistentSingleTabManager,
-  connectFirestoreEmulator
+  getFirestore,
+  connectFirestoreEmulator,
+  enableMultiTabIndexedDbPersistence,
+  disableNetwork,
+  enableNetwork
 } from "firebase/firestore";
 
 // تكوين Firebase
@@ -22,50 +23,59 @@ const firebaseConfig = {
 // تهيئة Firebase
 const app = initializeApp(firebaseConfig);
 
-// تهيئة Firestore مع إعدادات مخصصة لـ Safari
-const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+// تهيئة Firestore بشكل بسيط
+const db = getFirestore(app);
 
-const firestoreSettings = {
-  experimentalForceLongPolling: isSafari,
-  localCache: persistentLocalCache({
-    tabManager: persistentSingleTabManager({ forceOwnership: true }),
-    cacheSizeBytes: 41943040 // 40MB
-  }),
-  ignoreUndefinedProperties: true,
-  merge: true
-};
-
-const db = initializeFirestore(app, firestoreSettings);
-
-// تعديل إعدادات fetch للتعامل مع CORS
-const originalFetch = window.fetch;
-window.fetch = async (input, init) => {
-  if (input && typeof input === 'string' && input.includes('firestore.googleapis.com')) {
-    init = {
-      ...init,
-      mode: 'cors',
-      credentials: 'include',
-      headers: {
-        ...init?.headers,
-        'Origin': window.location.origin,
-      }
-    };
-  }
-  return originalFetch(input, init);
-};
+// تفعيل التخزين المؤقت متعدد التبويبات
+enableMultiTabIndexedDbPersistence(db)
+  .then(() => {
+    console.log('✅ Firestore persistence enabled');
+  })
+  .catch((err: { code: string }) => {
+    if (err.code === 'failed-precondition') {
+      console.warn('⚠️ Multiple tabs open, persistence enabled in first tab only');
+    } else if (err.code === 'unimplemented') {
+      console.warn('⚠️ Browser does not support persistence');
+    } else {
+      console.error('❌ Error enabling persistence:', err);
+    }
+  });
 
 // تهيئة خدمات Firebase الأخرى
 const auth = getAuth(app);
 const storage = getStorage(app);
 const googleProvider = new GoogleAuthProvider();
 
-// تفعيل المحاكيات المحلية في بيئة التطوير فقط
+// التحقق من بيئة التشغيل وتكوين الاتصالات المناسبة
 if (window.location.hostname === 'localhost') {
+  // بيئة التطوير المحلية
   connectFirestoreEmulator(db, '127.0.0.1', 8080);
   connectAuthEmulator(auth, 'http://127.0.0.1:9099');
   connectStorageEmulator(storage, '127.0.0.1', 9199);
-  console.log('Connected to Firebase Emulators');
+  console.log('🔧 Connected to Firebase Emulators');
+} else {
+  // بيئة الإنتاج (Vercel)
+  console.log('🚀 Connected to Firebase Production Services');
+  
+  // التحقق من الاتصال بـ Firestore
+  disableNetwork(db)
+    .then(() => enableNetwork(db))
+    .then(() => {
+      console.log('✅ Firestore connection verified');
+    })
+    .catch((error: Error) => {
+      console.error('❌ Firestore connection error:', error);
+    });
 }
+
+// إضافة مستمع لحالة المصادقة
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    console.log('👤 User authenticated:', user.uid);
+  } else {
+    console.log('👤 User signed out');
+  }
+});
 
 // تصدير المتغيرات لاستخدامها في باقي التطبيق
 export default app;
