@@ -6,7 +6,8 @@ import {
   persistentLocalCache,
   persistentSingleTabManager,
   connectFirestoreEmulator,
-  CACHE_SIZE_UNLIMITED
+  CACHE_SIZE_UNLIMITED,
+  enableIndexedDbPersistence
 } from "firebase/firestore";
 
 // تكوين Firebase
@@ -34,8 +35,27 @@ const db = initializeFirestore(app, {
   localCache: persistentLocalCache({
     tabManager: persistentSingleTabManager({ forceOwnership: true }),
     cacheSizeBytes: CACHE_SIZE_UNLIMITED
-  })
+  }),
+  // تعطيل الكشف التلقائي
+  experimentalAutoDetectLongPolling: false
 });
+
+// تفعيل التخزين المحلي
+if (isSafari) {
+  enableIndexedDbPersistence(db)
+    .then(() => {
+      console.log('📱 Safari IndexedDB persistence enabled');
+    })
+    .catch((err) => {
+      if (err.code === 'failed-precondition') {
+        console.warn('⚠️ Multiple tabs open, persistence can only be enabled in one tab at a time.');
+      } else if (err.code === 'unimplemented') {
+        console.warn('⚠️ The current browser does not support persistence.');
+      } else {
+        console.error('❌ Error enabling persistence:', err);
+      }
+    });
+}
 
 // تهيئة خدمات Firebase الأخرى
 const auth = getAuth(app);
