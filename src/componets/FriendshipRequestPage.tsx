@@ -1,16 +1,15 @@
 // صفحة جديدة للتحقق من الرابط الوارد
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { db, auth } from "./firebase";
+import { auth, db } from "./firebase";
 import { query, getDocs, where, addDoc, collection } from "firebase/firestore";
 
-
 interface Users {
-    userId: string;
-    name: string;
-    photoURL: string;
-  }
-  
+  userId: string;
+  name: string;
+  photoURL: string;
+}
+
 const FriendshipRequestPage: React.FC = () => {
   const { userId } = useParams<{ userId: string }>();
   const [senderData, setSenderData] = useState<Users | null>(null);
@@ -20,7 +19,7 @@ const FriendshipRequestPage: React.FC = () => {
     const fetchUserData = async () => {
       const q = query(collection(db, "Users"), where("userId", "==", userId));
       const querySnapshot = await getDocs(q);
-      
+
       if (!querySnapshot.empty) {
         const user = querySnapshot.docs[0].data() as Users;
         setSenderData(user);
@@ -52,7 +51,10 @@ const FriendshipRequestPage: React.FC = () => {
       {senderData ? (
         <div>
           <h3>{senderData.name} يرغب في أن تكون صديقًا!</h3>
-          <button onClick={acceptRequest} className="bg-blue-500 text-white px-4 py-2 rounded mt-2">
+          <button
+            onClick={acceptRequest}
+            className="bg-blue-500 text-white px-4 py-2 rounded mt-2"
+          >
             قبول طلب الصداقة
           </button>
         </div>

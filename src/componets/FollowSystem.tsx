@@ -1,6 +1,5 @@
 import { Timestamp } from "firebase/firestore";
 import React, { useState, useEffect } from "react";
-import { db, auth } from "./firebase";
 import { useNavigate } from "react-router-dom";
 import {
   collection,
@@ -12,8 +11,10 @@ import {
   deleteDoc,
   doc,
 } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 import { IoIosArrowBack } from "react-icons/io";
 import FriendSkeleton from "./FriendSkeleton";
+import { auth, db } from "./firebase";
 
 interface Users {
   userId: string;
@@ -48,128 +49,130 @@ const FriendSystem: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadingFriends, setLoadingFriends] = useState(true);
   const [loadingRequests, setLoadingRequests] = useState(true);
-  const currentUser = auth.currentUser;
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!currentUser) return;
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (!user) return;
 
-    const fetchRequests = async () => {
-      setLoadingRequests(true);
-      try {
-        const q = query(
-          collection(db, "FriendRequests"),
-          where("receiverId", "==", currentUser.uid),
-          where("status", "==", "pending")
-        );
-        const querySnapshot = await getDocs(q);
-        const requestList = await Promise.all(
-          querySnapshot.docs.map(async (docSnap) => {
-            const requestData = docSnap.data() as FriendRequest;
-            const senderQuery = query(
-              collection(db, "Users"),
-              where("userId", "==", requestData.senderId)
-            );
-            const senderSnapshot = await getDocs(senderQuery);
-            const senderData = senderSnapshot.docs[0]?.data() as Users;
-            return {
-              ...requestData,
-              id: docSnap.id,
-              senderName: senderData?.name || "مستخدم مجهول",
-              senderPic: senderData?.photoURL || "default-avatar.png",
-            };
-          })
-        );
-        setRequests(requestList);
-      } catch (error) {
-        console.error("Error fetching requests:", error);
-      } finally {
-        setLoadingRequests(false);
-      }
-    };
+      const fetchRequests = async () => {
+        setLoadingRequests(true);
+        try {
+          const q = query(
+            collection(db, "FriendRequests"),
+            where("receiverId", "==", user.uid),
+            where("status", "==", "pending")
+          );
+          const querySnapshot = await getDocs(q);
+          const requestList = await Promise.all(
+            querySnapshot.docs.map(async (docSnap) => {
+              const requestData = docSnap.data() as FriendRequest;
+              const senderQuery = query(
+                collection(db, "Users"),
+                where("userId", "==", requestData.senderId)
+              );
+              const senderSnapshot = await getDocs(senderQuery);
+              const senderData = senderSnapshot.docs[0]?.data() as Users;
+              return {
+                ...requestData,
+                id: docSnap.id,
+                senderName: senderData?.name || "مستخدم مجهول",
+                senderPic: senderData?.photoURL || "default-avatar.png",
+              };
+            })
+          );
+          setRequests(requestList);
+        } catch (error) {
+          console.error("Error fetching requests:", error);
+        } finally {
+          setLoadingRequests(false);
+        }
+      };
 
-    const fetchFriends = async () => {
-      if (!currentUser) return;
-      setLoadingFriends(true);
-      try {
-        const q1 = query(
-          collection(db, "Friends"),
-          where("userId1", "==", currentUser.uid)
-        );
-        const q2 = query(
-          collection(db, "Friends"),
-          where("userId2", "==", currentUser.uid)
-        );
+      const fetchFriends = async () => {
+        if (!user) return;
+        setLoadingFriends(true);
+        try {
+          const q1 = query(
+            collection(db, "Friends"),
+            where("userId1", "==", user.uid)
+          );
+          const q2 = query(
+            collection(db, "Friends"),
+            where("userId2", "==", user.uid)
+          );
 
-        const [querySnapshot1, querySnapshot2] = await Promise.all([
-          getDocs(q1),
-          getDocs(q2),
-        ]);
+          const [querySnapshot1, querySnapshot2] = await Promise.all([
+            getDocs(q1),
+            getDocs(q2),
+          ]);
 
-        const friendList = await Promise.all([
-          ...querySnapshot1.docs.map(async (docSnap) => {
-            const friendData = docSnap.data() as Friends;
-            const friendId =
-              friendData.userId1 === currentUser.uid
-                ? friendData.userId2
-                : friendData.userId1;
-            const friendQuery = query(
-              collection(db, "Users"),
-              where("userId", "==", friendId)
-            );
-            const friendSnapshot = await getDocs(friendQuery);
-            const friendInfo = friendSnapshot.docs[0]?.data() as Users;
-            return {
-              id: docSnap.id,
-              userId1: friendData.userId1,
-              userId2: friendData.userId2,
-              name: friendInfo?.name || "مستخدم مجهول",
-              photoURL: friendInfo?.photoURL || "default-avatar.png",
-              friendshipDate: friendData.friendshipDate,
-            };
-          }),
-          ...querySnapshot2.docs.map(async (docSnap) => {
-            const friendData = docSnap.data() as Friends;
-            const friendId =
-              friendData.userId1 === currentUser.uid
-                ? friendData.userId2
-                : friendData.userId1;
-            const friendQuery = query(
-              collection(db, "Users"),
-              where("userId", "==", friendId)
-            );
-            const friendSnapshot = await getDocs(friendQuery);
-            const friendInfo = friendSnapshot.docs[0]?.data() as Users;
-            return {
-              id: docSnap.id,
-              userId1: friendData.userId1,
-              userId2: friendData.userId2,
-              name: friendInfo?.name || "مستخدم مجهول",
-              photoURL: friendInfo?.photoURL || "default-avatar.png",
-              friendshipDate: friendData.friendshipDate,
-            };
-          }),
-        ]);
+          const friendList = await Promise.all([
+            ...querySnapshot1.docs.map(async (docSnap) => {
+              const friendData = docSnap.data() as Friends;
+              const friendId =
+                friendData.userId1 === user.uid
+                  ? friendData.userId2
+                  : friendData.userId1;
+              const friendQuery = query(
+                collection(db, "Users"),
+                where("userId", "==", friendId)
+              );
+              const friendSnapshot = await getDocs(friendQuery);
+              const friendInfo = friendSnapshot.docs[0]?.data() as Users;
+              return {
+                id: docSnap.id,
+                userId1: friendData.userId1,
+                userId2: friendData.userId2,
+                name: friendInfo?.name || "مستخدم مجهول",
+                photoURL: friendInfo?.photoURL || "default-avatar.png",
+                friendshipDate: friendData.friendshipDate,
+              };
+            }),
+            ...querySnapshot2.docs.map(async (docSnap) => {
+              const friendData = docSnap.data() as Friends;
+              const friendId =
+                friendData.userId1 === user.uid
+                  ? friendData.userId2
+                  : friendData.userId1;
+              const friendQuery = query(
+                collection(db, "Users"),
+                where("userId", "==", friendId)
+              );
+              const friendSnapshot = await getDocs(friendQuery);
+              const friendInfo = friendSnapshot.docs[0]?.data() as Users;
+              return {
+                id: docSnap.id,
+                userId1: friendData.userId1,
+                userId2: friendData.userId2,
+                name: friendInfo?.name || "مستخدم مجهول",
+                photoURL: friendInfo?.photoURL || "default-avatar.png",
+                friendshipDate: friendData.friendshipDate,
+              };
+            }),
+          ]);
 
-        const uniqueFriends = Array.from(
-          new Set(friendList.map((f) => f.id))
-        ).map((id) => friendList.find((f) => f.id === id));
+          const uniqueFriends = Array.from(
+            new Set(friendList.map((f) => f.id))
+          ).map((id) => friendList.find((f) => f.id === id));
 
-        setFriends(uniqueFriends as Friends[]);
-        setFriendsCount(uniqueFriends.length);
-      } catch (error) {
-        console.error("Error fetching friends:", error);
-      } finally {
-        setLoadingFriends(false);
-      }
-    };
+          setFriends(uniqueFriends as Friends[]);
+          setFriendsCount(uniqueFriends.length);
+        } catch (error) {
+          console.error("Error fetching friends:", error);
+        } finally {
+          setLoadingFriends(false);
+        }
+      };
 
-    fetchRequests();
-    fetchFriends();
-  }, [currentUser]);
+      fetchRequests();
+      fetchFriends();
+    });
+    return () => unsubscribe();
+  }, []);
 
   const sendFriendRequest = async () => {
-    if (!currentUser || !friendUsername) return;
+    if (!auth.currentUser || !friendUsername) return;
     setIsLoading(true);
     try {
       const q = query(
@@ -185,14 +188,14 @@ const FriendSystem: React.FC = () => {
 
       const receiver = querySnapshot.docs[0].data() as Users;
 
-      if (receiver.userId === currentUser.uid) {
+      if (receiver.userId === auth.currentUser.uid) {
         alert("لا يمكنك إرسال طلب صداقة لنفسك!");
         return;
       }
 
       const requestQuery = query(
         collection(db, "FriendRequests"),
-        where("senderId", "==", currentUser.uid),
+        where("senderId", "==", auth.currentUser.uid),
         where("receiverId", "==", receiver.userId)
       );
       const requestSnapshot = await getDocs(requestQuery);
@@ -202,7 +205,7 @@ const FriendSystem: React.FC = () => {
       }
 
       await addDoc(collection(db, "FriendRequests"), {
-        senderId: currentUser.uid,
+        senderId: auth.currentUser.uid,
         receiverId: receiver.userId,
         status: "pending",
       });
@@ -259,8 +262,8 @@ const FriendSystem: React.FC = () => {
 
       const requestQuery = query(
         collection(db, "FriendRequests"),
-        where("senderId", "in", [currentUser?.uid, friend.userId1]),
-        where("receiverId", "in", [currentUser?.uid, friend.userId2])
+        where("senderId", "in", [auth.currentUser?.uid, friend.userId1]),
+        where("receiverId", "in", [auth.currentUser?.uid, friend.userId2])
       );
       const requestSnapshot = await getDocs(requestQuery);
       requestSnapshot.forEach(async (docSnap) => {

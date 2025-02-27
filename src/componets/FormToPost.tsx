@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
-import { storage, auth } from "./firebase";
+import { auth, storage } from "./firebase";
 import { Timestamp } from "firebase/firestore";
 import { RiCloseLargeFill } from "react-icons/ri";
 import { BiSolidImageAdd } from "react-icons/bi";

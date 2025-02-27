@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { auth, googleProvider, db } from "./firebase"; // تأكد من أن db يتم تصديره من Firebase
+import { auth, db, googleProvider } from "./firebase";
 import { signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
-import { doc, setDoc, Timestamp } from "firebase/firestore"; // تأكد من استيراد هذه الدوال من Firestore
+import { doc, setDoc, Timestamp } from "firebase/firestore";
 
 interface LoginProps {
   onLogin: (userId: string) => void;
