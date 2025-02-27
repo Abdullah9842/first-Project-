@@ -146,9 +146,11 @@ function Profile() {
     return () => unsubscribeFriends1();
   }, [userId]);
 
-  // Modify fetchAllPosts to use real-time listeners
-  const fetchAllPosts = useCallback(async () => {
-    if (!userId) return;
+  // Modify fetchAllPosts to return unsubscribe functions
+  const fetchAllPosts = useCallback(() => {
+    if (!userId) return () => {};
+
+    let friendsUnsubscribes: (() => void)[] = [];
 
     try {
       // Set up real-time listener for user's posts
@@ -164,50 +166,109 @@ function Profile() {
             convertDocToPost(doc, true)
           );
 
-          // Get friends list and set up listeners for their posts
-          const friendsList = await fetchFriendsWithRetry();
+          // Get friends list with friendship dates
+          const friendsQuery1 = query(
+            collection(db, "Friends"),
+            where("userId1", "==", userId)
+          );
+          const friendsQuery2 = query(
+            collection(db, "Friends"),
+            where("userId2", "==", userId)
+          );
 
-          const friendsPostsPromises = friendsList.map((friendId) => {
-            const friendPostsQuery = query(
-              collection(db, "posts"),
-              where("userId", "==", friendId)
-            );
+          const [snapshot1, snapshot2] = await Promise.all([
+            getDocs(friendsQuery1),
+            getDocs(friendsQuery2),
+          ]);
 
-            return new Promise<Post[]>((resolve) => {
-              onSnapshot(friendPostsQuery, (friendPostsSnapshot) => {
-                const friendPosts = friendPostsSnapshot.docs.map((doc) =>
-                  convertDocToPost(doc, false)
-                );
-                resolve(friendPosts);
-              });
-            });
+          const friendsWithDates = new Map<string, Date>();
+
+          snapshot1.docs.forEach((doc) => {
+            const data = doc.data();
+            friendsWithDates.set(data.userId2, data.friendshipDate.toDate());
           });
 
-          const friendsPostsArrays = await Promise.all(friendsPostsPromises);
-          const friendsPosts = friendsPostsArrays.flat();
+          snapshot2.docs.forEach((doc) => {
+            const data = doc.data();
+            friendsWithDates.set(data.userId1, data.friendshipDate.toDate());
+          });
 
-          const allPosts = [...userPosts, ...friendsPosts].sort(
-            (a: Post, b: Post) => {
-              const timeA = normalizeTimestamp(a.timestamp);
-              const timeB = normalizeTimestamp(b.timestamp);
-              return timeB - timeA;
+          // Cleanup previous friend listeners
+          friendsUnsubscribes.forEach((unsubscribe) => unsubscribe());
+          friendsUnsubscribes = [];
+
+          // Set up listeners for each friend's posts
+          friendsUnsubscribes = Array.from(friendsWithDates.entries()).map(
+            ([friendId, friendshipDate]) => {
+              const friendPostsQuery = query(
+                collection(db, "posts"),
+                where("userId", "==", friendId)
+              );
+
+              return onSnapshot(friendPostsQuery, (friendPostsSnapshot) => {
+                const friendPosts = friendPostsSnapshot.docs
+                  .map((doc) => convertDocToPost(doc, false))
+                  .filter((post) => {
+                    const postDate =
+                      post.timestamp instanceof Timestamp
+                        ? post.timestamp.toDate()
+                        : new Date(post.timestamp);
+                    return postDate >= friendshipDate;
+                  });
+
+                // Combine and sort all posts
+                const allPosts = [...userPosts, ...friendPosts].sort((a, b) => {
+                  const timeA = normalizeTimestamp(a.timestamp);
+                  const timeB = normalizeTimestamp(b.timestamp);
+                  return timeB - timeA;
+                });
+
+                setPosts(allPosts);
+                setLoadingPosts(false);
+              });
             }
           );
 
-          setPosts(allPosts);
-          setLoadingPosts(false);
+          // If there are no friends, just set user's posts
+          if (friendsWithDates.size === 0) {
+            setPosts(userPosts);
+            setLoadingPosts(false);
+          }
         }
       );
 
+      // Return cleanup function that unsubscribes all listeners
       return () => {
         unsubscribeUserPosts();
+        friendsUnsubscribes.forEach((unsubscribe) => unsubscribe());
       };
     } catch (error) {
       console.error("Error setting up real-time posts:", error);
       setError("Failed to load posts");
       setLoadingPosts(false);
+      return () => {
+        friendsUnsubscribes.forEach((unsubscribe) => unsubscribe());
+      };
     }
-  }, [userId, fetchFriendsWithRetry, convertDocToPost]);
+  }, [userId, convertDocToPost]);
+
+  useEffect(() => {
+    if (!userId) {
+      setLoadingPosts(false);
+      setError("No user ID provided");
+      return;
+    }
+
+    console.log("Starting posts fetch for user:", userId);
+    setLoadingPosts(true);
+    const unsubscribe = fetchAllPosts();
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [userId, fetchAllPosts, refreshTrigger]);
 
   const handleLogout = async () => {
     try {
@@ -222,18 +283,6 @@ function Profile() {
   const handleProfileUpdate = useCallback(() => {
     setRefreshTrigger((prev) => prev + 1);
   }, []);
-
-  useEffect(() => {
-    if (!userId) {
-      setLoadingPosts(false);
-      setError("No user ID provided");
-      return;
-    }
-
-    console.log("Starting posts fetch for user:", userId);
-    setLoadingPosts(true);
-    fetchAllPosts();
-  }, [userId, fetchAllPosts, refreshTrigger]); // Add refreshTrigger to dependencies
 
   const handleDelete = async (postId: string) => {
     try {
