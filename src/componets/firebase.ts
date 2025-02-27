@@ -1,8 +1,9 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, onAuthStateChanged, connectAuthEmulator } from "firebase/auth";
-import { getStorage, connectStorageEmulator } from "firebase/storage";
+import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { getStorage } from "firebase/storage";
 import { 
-  getFirestore,
+  initializeFirestore, 
+  CACHE_SIZE_UNLIMITED,
   connectFirestoreEmulator
 } from "firebase/firestore";
 
@@ -19,30 +20,25 @@ const firebaseConfig = {
 
 // تهيئة Firebase
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+
+// إعدادات Firestore مع دعم Safari
+const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true,
+  experimentalAutoDetectLongPolling: true,
+  cacheSizeBytes: CACHE_SIZE_UNLIMITED
+});
+
 const auth = getAuth(app);
 const storage = getStorage(app);
 const googleProvider = new GoogleAuthProvider();
 
 // تفعيل المحاكيات المحلية في بيئة التطوير فقط
-if (window.location.hostname === 'localhost') {
-  connectFirestoreEmulator(db, '127.0.0.1', 8080);
-  connectAuthEmulator(auth, 'http://127.0.0.1:9099');
-  connectStorageEmulator(storage, '127.0.0.1', 9199);
-  console.log('🔧 Connected to Firebase Emulators');
+if (process.env.NODE_ENV === 'development') {
+  connectFirestoreEmulator(db, 'localhost', 8080);
+  console.log('🔧 Using Firebase Emulators');
 } else {
-  console.log('🚀 Connected to Firebase Production Services');
+  console.log('🚀 Using Firebase Production Services');
 }
 
-// إضافة مستمع لحالة المصادقة
-onAuthStateChanged(auth, (user) => {
-  if (user) {
-    console.log('👤 User authenticated:', user.uid);
-  } else {
-    console.log('👤 User signed out');
-  }
-});
-
-// تصدير المتغيرات لاستخدامها في باقي التطبيق
 export default app;
-export { auth, googleProvider, db, storage, onAuthStateChanged };
+export { auth, googleProvider, db, storage };
