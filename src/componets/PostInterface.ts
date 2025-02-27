@@ -37,8 +37,8 @@ import { Timestamp } from "firebase/firestore";
 
 export interface Post {
   id: string;
-  text?: string;
-  timestamp: Timestamp | Date | string;
+  text: string;
+  timestamp: Timestamp;
   userId: string;
   image: string | null;
   liked: boolean;
@@ -46,4 +46,5 @@ export interface Post {
   mediaUrl?: string;
   name?: string;
   photoURL?: string;
+  spotifyUrl?: string;
 }

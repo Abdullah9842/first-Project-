@@ -7,8 +7,6 @@ import { BiSolidImageAdd } from "react-icons/bi";
 import { BsSendFill } from "react-icons/bs";
 import { FaSpotify } from "react-icons/fa";
 import { FaMicrophone } from "react-icons/fa";
-import { getDoc, doc } from "firebase/firestore";
-import { db } from "./firebase";
 
 interface FormToPostProps {
   onSubmit: (
@@ -129,33 +127,29 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
         finalAudioUrl = await uploadFile(audioBlob, "audio");
       }
 
-      const userDoc = await getDoc(doc(db, "Users", currentUser.uid));
-      const userData = userDoc.data();
+      if (!text && !finalImageUrl && !finalAudioUrl && !spotifyUrl) {
+        setError("يجب إضافة نص أو وسائط للنشر");
+        return;
+      }
 
-      const newPost = {
-        text: text,
-        userId: currentUser.uid,
-        name: userData?.name || "Unknown User",
-        photoURL: userData?.photoURL || "/default-avatar.png",
-        timestamp: serverTimestamp(),
-        image: finalImageUrl,
-        mediaUrl: finalAudioUrl,
-        liked: false,
-        likeCount: 0,
-      };
+      const currentTimestamp = Timestamp.now().toMillis();
+      const serverTime = serverTimestamp();
+
+      console.log("Server timestamp:", serverTime);
 
       await onSubmit(
-        newPost.text,
-        newPost.image,
+        text,
+        finalImageUrl,
         spotifyUrl,
-        newPost.mediaUrl,
-        Timestamp.fromDate(new Date()).toMillis()
+        finalAudioUrl,
+        currentTimestamp
       );
 
       resetForm();
+      onClose();
     } catch (error) {
       console.error("Error creating post:", error);
-      setError("حدث خطأ أثناء إرسال المنشور. الرجاء المحاولة مرة أخرى.");
+      setError("حدث خطأ أثناء إنشاء المنشور");
     } finally {
       setIsSubmitting(false);
       setIsLoading(false);
@@ -249,9 +243,8 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
     setSpotifyUrl("");
     setAudioBlob(null);
     setAudioUrl(null);
-    onClose();
-    setIsLoading(false);
-    setIsSubmitting(false);
+    setError(null);
+    setProgress(0);
   };
 
   const isSubmitDisabled =
@@ -282,8 +275,8 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
         </button>
 
         <h2 className="text-2xl font-semibold text-gray-800 text-center mb-4">
-        what's happening?
-         </h2>
+          what's happening?
+        </h2>
 
         {imageUrl && (
           <div className="relative w-full mb-4 rounded-lg overflow-hidden shadow-lg hover:scale-105 transition-all">
