@@ -61,26 +61,7 @@ function Profile() {
 
     const fetchAllPosts = async () => {
       try {
-        // 1. First fetch user's own posts
-        const userPostsQuery = query(
-          collection(db, "posts"),
-          where("userId", "==", userId)
-        );
-        const userPostsSnapshot = await getDocs(userPostsQuery);
-        const userPosts = userPostsSnapshot.docs.map((doc) => ({
-          id: doc.id,
-          text: doc.data().text || "",
-          timestamp: doc.data().timestamp,
-          userId: doc.data().userId,
-          image: doc.data().image || null,
-          mediaUrl: doc.data().mediaUrl || "",
-          liked: Boolean(doc.data().liked),
-          likeCount: Number(doc.data().likeCount) || 0,
-          isOwnPost: true,
-          isFriendPost: false,
-        }));
-
-        // 2. Fetch friends list
+        // 1. First fetch friends list
         const friendsQuery = query(
           collection(db, "Friends"),
           where("userId1", "==", userId)
@@ -92,45 +73,39 @@ function Profile() {
 
         console.log("Friends list:", friendsList);
 
-        // 3. Fetch friends' posts
-        const friendsPosts = [];
-        for (const friendId of friendsList) {
-          try {
-            const friendPostsQuery = query(
-              collection(db, "posts"),
-              where("userId", "==", friendId)
-            );
-            const friendPostsSnapshot = await getDocs(friendPostsQuery);
-            const posts = friendPostsSnapshot.docs.map((doc) => ({
-              id: doc.id,
-              text: doc.data().text || "",
-              timestamp: doc.data().timestamp,
-              userId: doc.data().userId,
-              image: doc.data().image || null,
-              mediaUrl: doc.data().mediaUrl || "",
-              liked: Boolean(doc.data().liked),
-              likeCount: Number(doc.data().likeCount) || 0,
-              isOwnPost: false,
-              isFriendPost: true,
-            }));
-            friendsPosts.push(...posts);
-          } catch (error) {
-            console.error(
-              `Error fetching posts for friend ${friendId}:`,
-              error
-            );
-          }
-        }
+        // 2. Create array of user IDs to fetch posts for (current user + friends)
+        const userIds = [userId, ...friendsList];
+        console.log("Fetching posts for users:", userIds);
 
-        // 4. Combine and sort all posts
-        const allPosts = [...userPosts, ...friendsPosts].sort((a, b) => {
+        // 3. Fetch all posts in a single query
+        const postsQuery = query(
+          collection(db, "posts"),
+          where("userId", "in", userIds)
+        );
+
+        const postsSnapshot = await getDocs(postsQuery);
+        const allPosts = postsSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          text: doc.data().text || "",
+          timestamp: doc.data().timestamp,
+          userId: doc.data().userId,
+          image: doc.data().image || null,
+          mediaUrl: doc.data().mediaUrl || "",
+          liked: Boolean(doc.data().liked),
+          likeCount: Number(doc.data().likeCount) || 0,
+          isOwnPost: doc.data().userId === userId,
+          isFriendPost: doc.data().userId !== userId,
+        }));
+
+        // 4. Sort posts by timestamp
+        const sortedPosts = allPosts.sort((a, b) => {
           const timeA = normalizeTimestamp(a.timestamp);
           const timeB = normalizeTimestamp(b.timestamp);
           return timeB - timeA;
         });
 
-        console.log("Total posts fetched:", allPosts.length);
-        setPosts(allPosts);
+        console.log("Total posts fetched:", sortedPosts.length);
+        setPosts(sortedPosts);
         setLoadingPosts(false);
       } catch (error) {
         console.error("Error fetching posts:", error);
@@ -140,9 +115,6 @@ function Profile() {
     };
 
     fetchAllPosts();
-
-    // No need for cleanup function as we're not using real-time listeners
-    return () => {};
   }, [userId]);
 
   const handleDelete = async (postId: string) => {

@@ -2,9 +2,9 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, type Auth } from 'firebase/auth';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
 import { 
-  initializeFirestore,
-  persistentLocalCache,
-  persistentMultipleTabManager,
+  initializeFirestore, 
+  persistentLocalCache, 
+  persistentMultipleTabManager, 
   type Firestore,
   type FirestoreSettings,
   type Query,
@@ -13,7 +13,8 @@ import {
   doc,
   onSnapshot,
   collection,
-  type CollectionReference
+  type CollectionReference,
+  enableIndexedDbPersistence
 } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -36,18 +37,24 @@ const googleProvider = new GoogleAuthProvider();
 
 // Optimized Firestore settings for cross-browser compatibility
 const firestoreSettings: FirestoreSettings = {
-  experimentalForceLongPolling: true, // Force long polling for all browsers to ensure consistency
-  experimentalAutoDetectLongPolling: false, // Disable auto-detection
+  experimentalForceLongPolling: true,
+  experimentalAutoDetectLongPolling: false,
   localCache: persistentLocalCache({
     tabManager: persistentMultipleTabManager()
   }),
-  ssl: true, // Ensure SSL is used
-  host: 'firestore.googleapis.com', // Explicitly set the host
-  ignoreUndefinedProperties: true // Ignore undefined properties to prevent errors
+  ssl: true,
+  host: 'firestore.googleapis.com',
+  ignoreUndefinedProperties: true,
+  cacheSizeBytes: 40000000, // Set to 40MB
 };
 
 // Initialize Firestore with optimized settings
 const db = initializeFirestore(app, firestoreSettings);
+
+// Enable offline persistence
+enableIndexedDbPersistence(db).catch((err) => {
+  console.error("Error enabling offline persistence:", err);
+});
 
 // Export Firebase instances and types
 export { auth, db, storage, googleProvider };
