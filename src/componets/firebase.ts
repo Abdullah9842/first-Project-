@@ -2,9 +2,9 @@ import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getStorage } from "firebase/storage";
 import { 
-  initializeFirestore, 
-  CACHE_SIZE_UNLIMITED,
-  connectFirestoreEmulator
+  getFirestore,
+  connectFirestoreEmulator,
+  enableIndexedDbPersistence
 } from "firebase/firestore";
 
 // تكوين Firebase
@@ -21,11 +21,21 @@ const firebaseConfig = {
 // تهيئة Firebase
 const app = initializeApp(firebaseConfig);
 
-// إعدادات Firestore مع دعم Safari
-const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true,
-  cacheSizeBytes: CACHE_SIZE_UNLIMITED
-});
+// تهيئة Firestore مع إعدادات خاصة
+const db = getFirestore(app);
+
+// تمكين التخزين المحلي لـ Safari
+if (typeof window !== 'undefined' && window.navigator.vendor.includes('Apple')) {
+  enableIndexedDbPersistence(db, {
+    forceOwnership: true
+  }).catch((err) => {
+    if (err.code === 'failed-precondition') {
+      console.warn('Multiple tabs open, persistence can only be enabled in one tab at a time.');
+    } else if (err.code === 'unimplemented') {
+      console.warn('The current browser does not support persistence.');
+    }
+  });
+}
 
 const auth = getAuth(app);
 const storage = getStorage(app);
