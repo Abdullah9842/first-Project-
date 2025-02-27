@@ -5,8 +5,6 @@ import {
   initializeFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
-  enableIndexedDbPersistence,
-  enableMultiTabIndexedDbPersistence,
   type Firestore,
   type FirestoreSettings,
   type Query,
@@ -39,7 +37,7 @@ const googleProvider = new GoogleAuthProvider();
 // Safari-optimized Firestore settings
 const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 const firestoreSettings: FirestoreSettings = {
-  ...(isSafari ? { experimentalForceLongPolling: true } : { experimentalAutoDetectLongPolling: true }),
+  experimentalForceLongPolling: isSafari, // Force long polling for Safari
   localCache: persistentLocalCache({
     tabManager: persistentMultipleTabManager()
   })
@@ -47,25 +45,6 @@ const firestoreSettings: FirestoreSettings = {
 
 // Initialize Firestore with optimized settings
 const db = initializeFirestore(app, firestoreSettings);
-
-// Enable persistence based on browser
-try {
-  if (isSafari) {
-    enableMultiTabIndexedDbPersistence(db).catch((err) => {
-      console.warn('Safari persistence fallback:', err);
-    });
-  } else {
-    enableIndexedDbPersistence(db).catch((err) => {
-      if (err.code === 'failed-precondition') {
-        console.warn('Multiple tabs open, persistence can only be enabled in one tab at a time.');
-      } else if (err.code === 'unimplemented') {
-        console.warn('The current browser does not support persistence.');
-      }
-    });
-  }
-} catch (err) {
-  console.error('Failed to enable persistence:', err);
-}
 
 // Export Firebase instances and types
 export { auth, db, storage, googleProvider };
