@@ -28,13 +28,10 @@ const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 const firestoreSettings = {
   experimentalForceLongPolling: isSafari,
   localCache: persistentLocalCache({
-    tabManager: persistentSingleTabManager({ forceOwnership: true })
+    tabManager: persistentSingleTabManager({ forceOwnership: true }),
+    cacheSizeBytes: 41943040 // 40MB
   }),
-  host: 'firestore.googleapis.com',
-  ssl: true,
   ignoreUndefinedProperties: true,
-  cacheSizeBytes: 41943040, // 40MB
-  experimentalAutoDetectLongPolling: false,
   merge: true
 };
 
