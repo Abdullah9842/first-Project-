@@ -142,8 +142,16 @@ function Profile() {
                       : postData.timestamp
                     : 0;
 
+                  console.log("Post data:", {
+                    id: doc.id,
+                    userId: postData.userId,
+                    timestamp: postTimestamp,
+                    text: postData.text?.substring(0, 20), // أول 20 حرف فقط
+                  });
+
                   // إذا كان المنشور للمستخدم نفسه، اعرضه دائماً
                   if (postData.userId === user.uid) {
+                    console.log("Showing user post:", doc.id);
                     return {
                       id: doc.id,
                       image: postData.image || null,
@@ -167,7 +175,15 @@ function Profile() {
                         ? friend.friendshipDate.toMillis()
                         : friend.friendshipDate;
 
+                    console.log("Comparing timestamps:", {
+                      postId: doc.id,
+                      postTimestamp,
+                      friendshipTimestamp,
+                      shouldShow: postTimestamp >= friendshipTimestamp,
+                    });
+
                     if (postTimestamp >= friendshipTimestamp) {
+                      console.log("Showing friend post:", doc.id);
                       return {
                         id: doc.id,
                         image: postData.image || null,
@@ -181,6 +197,7 @@ function Profile() {
                     }
                   }
 
+                  console.log("Filtering out post:", doc.id);
                   return null;
                 } catch (error) {
                   console.error("Error processing post doc:", error);
