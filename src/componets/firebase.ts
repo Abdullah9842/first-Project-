@@ -2,11 +2,11 @@ import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, onAuthStateChanged, connectAuthEmulator } from "firebase/auth";
 import { getStorage, connectStorageEmulator } from "firebase/storage";
 import { 
-  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentSingleTabManager,
   connectFirestoreEmulator,
-  enableMultiTabIndexedDbPersistence,
-  disableNetwork,
-  enableNetwork
+  CACHE_SIZE_UNLIMITED
 } from "firebase/firestore";
 
 // تكوين Firebase
@@ -23,49 +23,34 @@ const firebaseConfig = {
 // تهيئة Firebase
 const app = initializeApp(firebaseConfig);
 
-// تهيئة Firestore بشكل بسيط
-const db = getFirestore(app);
+// الكشف عن متصفح Safari
+const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 
-// تفعيل التخزين المؤقت متعدد التبويبات
-enableMultiTabIndexedDbPersistence(db)
-  .then(() => {
-    console.log('✅ Firestore persistence enabled');
+// تهيئة Firestore مع إعدادات مخصصة
+const db = initializeFirestore(app, {
+  // إعدادات خاصة لـ Safari
+  experimentalForceLongPolling: isSafari,
+  // إعدادات التخزين المؤقت
+  localCache: persistentLocalCache({
+    tabManager: persistentSingleTabManager({ forceOwnership: true }),
+    cacheSizeBytes: CACHE_SIZE_UNLIMITED
   })
-  .catch((err: { code: string }) => {
-    if (err.code === 'failed-precondition') {
-      console.warn('⚠️ Multiple tabs open, persistence enabled in first tab only');
-    } else if (err.code === 'unimplemented') {
-      console.warn('⚠️ Browser does not support persistence');
-    } else {
-      console.error('❌ Error enabling persistence:', err);
-    }
-  });
+});
 
 // تهيئة خدمات Firebase الأخرى
 const auth = getAuth(app);
 const storage = getStorage(app);
 const googleProvider = new GoogleAuthProvider();
 
-// التحقق من بيئة التشغيل وتكوين الاتصالات المناسبة
+// تفعيل المحاكيات المحلية في بيئة التطوير فقط
 if (window.location.hostname === 'localhost') {
-  // بيئة التطوير المحلية
   connectFirestoreEmulator(db, '127.0.0.1', 8080);
   connectAuthEmulator(auth, 'http://127.0.0.1:9099');
   connectStorageEmulator(storage, '127.0.0.1', 9199);
   console.log('🔧 Connected to Firebase Emulators');
 } else {
-  // بيئة الإنتاج (Vercel)
   console.log('🚀 Connected to Firebase Production Services');
-  
-  // التحقق من الاتصال بـ Firestore
-  disableNetwork(db)
-    .then(() => enableNetwork(db))
-    .then(() => {
-      console.log('✅ Firestore connection verified');
-    })
-    .catch((error: Error) => {
-      console.error('❌ Firestore connection error:', error);
-    });
+  console.log(`🌐 Browser: ${isSafari ? 'Safari' : 'Other'}`);
 }
 
 // إضافة مستمع لحالة المصادقة
