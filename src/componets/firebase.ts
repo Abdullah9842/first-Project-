@@ -28,7 +28,8 @@ async function initializeFirebase() {
     initializeFirestore,
     persistentLocalCache,
     persistentMultipleTabManager,
-    enableIndexedDbPersistence
+    enableIndexedDbPersistence,
+    CACHE_SIZE_UNLIMITED
   } = await import('firebase/firestore');
 
   app = initializeApp(firebaseConfig);
@@ -36,39 +37,39 @@ async function initializeFirebase() {
   storage = getStorage(app);
   googleProvider = new GoogleAuthProvider();
 
-  // إنشاء instance عادي من Firestore
-  const normalDb: Firestore = getFirestore(app);
-
-  // محاولة تمكين IndexedDB persistence
-  try {
-    await enableIndexedDbPersistence(normalDb).catch((err) => {
-      if (err.code === 'failed-precondition') {
-        console.warn('Multiple tabs open, persistence can only be enabled in one tab at a time.');
-      } else if (err.code === 'unimplemented') {
-        console.warn('The current browser does not support persistence.');
-      } else {
-        console.error("Error enabling persistence:", err);
-      }
-    });
-  } catch (err) {
-    console.warn('Failed to enable persistence:', err);
-  }
-
-  // إعدادات خاصة لـ Safari
+  // Safari-optimized Firestore settings
   const firestoreSettings: FirestoreSettings = {
     experimentalForceLongPolling: true,
     experimentalAutoDetectLongPolling: true,
+    cacheSizeBytes: CACHE_SIZE_UNLIMITED,
     localCache: persistentLocalCache({
       tabManager: persistentMultipleTabManager()
     })
   };
 
-  // تحديد نوع db بشكل صريح
   try {
+    // Try to initialize with optimized settings first
     db = initializeFirestore(app, firestoreSettings);
+    
+    // Enable offline persistence
+    try {
+      await enableIndexedDbPersistence(db).catch((err) => {
+        if (err.code === 'failed-precondition') {
+          console.warn('Multiple tabs open, persistence can only be enabled in one tab at a time.');
+        } else if (err.code === 'unimplemented') {
+          console.warn('The current browser does not support persistence.');
+        } else {
+          console.error("Error enabling persistence:", err);
+        }
+      });
+    } catch (err) {
+      console.warn('Failed to enable persistence:', err);
+    }
   } catch (err) {
     console.error('Failed to initialize Firestore with custom settings:', err);
-    db = normalDb; // استخدام النسخة العادية كاحتياطي
+    // Fallback to basic configuration
+    db = getFirestore(app);
+    console.log('Using fallback Firestore configuration');
   }
 
   return { app, auth, googleProvider, db, storage };
