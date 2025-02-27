@@ -11,7 +11,6 @@ import {
   deleteDoc,
   doc,
   updateDoc,
-  orderBy,
   getDoc,
   setDoc,
   Timestamp,
@@ -25,7 +24,6 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Post } from "./PostInterface";
 import { FaUserFriends } from "react-icons/fa";
 import PostSkeleton from "./PostSkeleton";
-import { normalizeTimestamp } from "./PostInterface";
 
 interface User {
   userId: string;
@@ -35,6 +33,20 @@ interface User {
   username: string;
   createdAt?: Timestamp;
 }
+
+// helper function لتحويل التاريخ إلى timestamp
+const getTimestampValue = (timestamp: string | Timestamp | Date): number => {
+  if (timestamp instanceof Timestamp) {
+    return timestamp.toMillis();
+  }
+  if (timestamp instanceof Date) {
+    return timestamp.getTime();
+  }
+  if (typeof timestamp === "string") {
+    return new Date(timestamp).getTime();
+  }
+  return Date.now();
+};
 
 function Profile() {
   const { userId } = useParams<{ userId: string }>();
@@ -87,29 +99,32 @@ function Profile() {
       try {
         const postsQuery = query(
           collection(db, "posts"),
-          where("userId", "==", userId),
-          orderBy("timestamp", "desc")
+          where("userId", "==", userId)
         );
 
         const unsubscribe = onSnapshot(postsQuery, (snapshot) => {
-          const postsData: Post[] = snapshot.docs.map((doc) => {
-            const data = doc.data();
-
-            const post: Post = {
-              id: doc.id,
-              text: data.text || "",
-              timestamp: normalizeTimestamp(data.timestamp),
-              userId: data.userId || "",
-              image: data.image || null,
-              mediaUrl: data.mediaUrl || "",
-              liked: Boolean(data.liked),
-              likeCount: Number(data.likeCount) || 0,
-              isOwnPost: data.userId === userId,
-              isFriendPost: false,
-            };
-
-            return post;
-          });
+          const postsData: Post[] = snapshot.docs
+            .map((doc) => {
+              const data = doc.data();
+              return {
+                id: doc.id,
+                text: data.text || "",
+                timestamp: data.timestamp || Timestamp.now(),
+                userId: data.userId || "",
+                image: data.image || null,
+                mediaUrl: data.mediaUrl || "",
+                liked: Boolean(data.liked),
+                likeCount: Number(data.likeCount) || 0,
+                isOwnPost: data.userId === userId,
+                isFriendPost: false,
+              };
+            })
+            // فرز البيانات باستخدام helper function
+            .sort((a, b) => {
+              const timeA = getTimestampValue(a.timestamp);
+              const timeB = getTimestampValue(b.timestamp);
+              return timeB - timeA;
+            });
 
           setPosts(postsData);
           setLoadingPosts(false);
