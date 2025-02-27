@@ -136,22 +136,28 @@ function Profile() {
               .map((doc) => {
                 try {
                   const postData = doc.data();
-                  const postTimestamp = postData.timestamp
-                    ? typeof postData.timestamp.toMillis === "function"
-                      ? postData.timestamp.toMillis()
-                      : postData.timestamp
-                    : 0;
 
-                  console.log("Post data:", {
-                    id: doc.id,
-                    userId: postData.userId,
-                    currentUser: user.uid,
-                    isCurrentUser: postData.userId === user.uid,
-                  });
+                  // تحويل التاريخ بشكل صحيح
+                  let postTimestamp;
+                  if (postData.timestamp) {
+                    if (typeof postData.timestamp.toMillis === "function") {
+                      postTimestamp = postData.timestamp.toMillis();
+                    } else if (typeof postData.timestamp === "number") {
+                      postTimestamp = postData.timestamp;
+                    } else {
+                      console.log(
+                        "Invalid timestamp format:",
+                        postData.timestamp
+                      );
+                      postTimestamp = Date.now(); // استخدام الوقت الحالي كحل مؤقت
+                    }
+                  } else {
+                    postTimestamp = Date.now();
+                  }
 
-                  // إذا كان المنشور للمستخدم نفسه، اعرضه دائماً
-                  if (postData.userId === user.uid) {
-                    console.log("✅ Showing current user post:", doc.id);
+                  // إذا كان المنشور للمستخدم نفسه
+                  if (postData.userId === userId) {
+                    console.log("✅ User's own post:", doc.id);
                     return {
                       id: doc.id,
                       image: postData.image || null,
@@ -164,26 +170,27 @@ function Profile() {
                     };
                   }
 
-                  // للأصدقاء، تحقق من تاريخ المنشور مقارنة بتاريخ الصداقة
+                  // للأصدقاء
                   const friend = friendsList.find(
                     (f) => f.userId === postData.userId
                   );
-
                   if (friend) {
-                    const friendshipTimestamp =
-                      friend.friendshipDate instanceof Timestamp
-                        ? friend.friendshipDate.toMillis()
-                        : friend.friendshipDate;
+                    let friendshipTimestamp;
+                    if (friend.friendshipDate instanceof Timestamp) {
+                      friendshipTimestamp = friend.friendshipDate.toMillis();
+                    } else if (typeof friend.friendshipDate === "number") {
+                      friendshipTimestamp = friend.friendshipDate;
+                    } else {
+                      console.log(
+                        "Invalid friendship date:",
+                        friend.friendshipDate
+                      );
+                      friendshipTimestamp = 0; // اظهار كل المنشورات للأصدقاء كحل مؤقت
+                    }
 
-                    console.log("Comparing timestamps:", {
-                      postId: doc.id,
-                      postTimestamp,
-                      friendshipTimestamp,
-                      shouldShow: postTimestamp >= friendshipTimestamp,
-                    });
-
+                    // نظهر المنشور إذا كان تاريخ المنشور أحدث من تاريخ الصداقة
                     if (postTimestamp >= friendshipTimestamp) {
-                      console.log("Showing friend post:", doc.id);
+                      console.log("✅ Friend's post:", doc.id);
                       return {
                         id: doc.id,
                         image: postData.image || null,
@@ -197,10 +204,9 @@ function Profile() {
                     }
                   }
 
-                  console.log("Filtering out post:", doc.id);
                   return null;
                 } catch (error) {
-                  console.error("Error processing post doc:", error);
+                  console.error("Error processing post:", error);
                   return null;
                 }
               })
@@ -229,7 +235,7 @@ function Profile() {
     };
 
     fetchData();
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     const fetchUser = async () => {
