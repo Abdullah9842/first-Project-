@@ -61,30 +61,14 @@ function Profile() {
 
     const fetchAllPosts = async () => {
       try {
-        // 1. First fetch friends list
-        const friendsQuery = query(
-          collection(db, "Friends"),
-          where("userId1", "==", userId)
-        );
-        const friendsSnapshot = await getDocs(friendsQuery);
-        const friendsList = friendsSnapshot.docs.map(
-          (doc) => doc.data().userId2
-        );
-
-        console.log("Friends list:", friendsList);
-
-        // 2. Create array of user IDs to fetch posts for (current user + friends)
-        const userIds = [userId, ...friendsList];
-        console.log("Fetching posts for users:", userIds);
-
-        // 3. Fetch all posts in a single query
-        const postsQuery = query(
+        // 1. Fetch user's own posts first
+        const userPostsQuery = query(
           collection(db, "posts"),
-          where("userId", "in", userIds)
+          where("userId", "==", userId)
         );
 
-        const postsSnapshot = await getDocs(postsQuery);
-        const allPosts = postsSnapshot.docs.map((doc) => ({
+        const userPostsSnapshot = await getDocs(userPostsQuery);
+        const userPosts = userPostsSnapshot.docs.map((doc) => ({
           id: doc.id,
           text: doc.data().text || "",
           timestamp: doc.data().timestamp,
@@ -93,19 +77,121 @@ function Profile() {
           mediaUrl: doc.data().mediaUrl || "",
           liked: Boolean(doc.data().liked),
           likeCount: Number(doc.data().likeCount) || 0,
-          isOwnPost: doc.data().userId === userId,
-          isFriendPost: doc.data().userId !== userId,
+          isOwnPost: true,
+          isFriendPost: false,
         }));
 
-        // 4. Sort posts by timestamp
-        const sortedPosts = allPosts.sort((a, b) => {
+        // 2. Fetch friends list with retry mechanism
+        const fetchFriendsWithRetry = async (
+          retries = 3
+        ): Promise<string[]> => {
+          try {
+            // Query for both userId1 and userId2
+            const friendsQuery1 = query(
+              collection(db, "Friends"),
+              where("userId1", "==", userId)
+            );
+            const friendsQuery2 = query(
+              collection(db, "Friends"),
+              where("userId2", "==", userId)
+            );
+
+            const [snapshot1, snapshot2] = await Promise.all([
+              getDocs(friendsQuery1),
+              getDocs(friendsQuery2),
+            ]);
+
+            const friendsList = new Set<string>();
+
+            // Add friends where user is userId1
+            snapshot1.docs.forEach((doc) => {
+              friendsList.add(doc.data().userId2);
+            });
+
+            // Add friends where user is userId2
+            snapshot2.docs.forEach((doc) => {
+              friendsList.add(doc.data().userId1);
+            });
+
+            console.log(
+              "Found friends in both directions:",
+              Array.from(friendsList)
+            );
+            return Array.from(friendsList);
+          } catch (error) {
+            if (retries > 0) {
+              console.log(
+                `Retrying friends fetch. Attempts left: ${retries - 1}`
+              );
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+              return fetchFriendsWithRetry(retries - 1);
+            }
+            throw error;
+          }
+        };
+
+        const friendsList = await fetchFriendsWithRetry();
+        console.log("Friends list:", friendsList);
+
+        // 3. Fetch friends' posts with retry mechanism
+        const fetchFriendsPosts = async (friendId: string, retries = 3) => {
+          try {
+            const friendPostsQuery = query(
+              collection(db, "posts"),
+              where("userId", "==", friendId)
+            );
+            const friendPostsSnapshot = await getDocs(friendPostsQuery);
+            return friendPostsSnapshot.docs.map((doc) => ({
+              id: doc.id,
+              text: doc.data().text || "",
+              timestamp: doc.data().timestamp,
+              userId: doc.data().userId,
+              image: doc.data().image || null,
+              mediaUrl: doc.data().mediaUrl || "",
+              liked: Boolean(doc.data().liked),
+              likeCount: Number(doc.data().likeCount) || 0,
+              isOwnPost: false,
+              isFriendPost: true,
+            }));
+          } catch (error) {
+            if (retries > 0) {
+              console.log(
+                `Retrying posts fetch for friend ${friendId}. Attempts left: ${
+                  retries - 1
+                }`
+              );
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+              return fetchFriendsPosts(friendId, retries - 1);
+            }
+            return [];
+          }
+        };
+
+        // 4. Fetch each friend's posts separately with delay
+        const friendsPosts = [];
+        for (const friendId of friendsList) {
+          const posts = await fetchFriendsPosts(friendId);
+          friendsPosts.push(...posts);
+          // Add small delay between requests to avoid overwhelming Safari
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+
+        // 5. Combine and sort all posts
+        const allPosts = [...userPosts, ...friendsPosts].sort((a, b) => {
           const timeA = normalizeTimestamp(a.timestamp);
           const timeB = normalizeTimestamp(b.timestamp);
           return timeB - timeA;
         });
 
-        console.log("Total posts fetched:", sortedPosts.length);
-        setPosts(sortedPosts);
+        console.log(
+          "Total posts fetched:",
+          allPosts.length,
+          "User posts:",
+          userPosts.length,
+          "Friend posts:",
+          friendsPosts.length
+        );
+        setPosts(allPosts);
         setLoadingPosts(false);
       } catch (error) {
         console.error("Error fetching posts:", error);
