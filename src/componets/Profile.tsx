@@ -11,6 +11,7 @@ import {
   doc,
   updateDoc,
   addDoc,
+  getDocs,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { signOut } from "firebase/auth";
@@ -55,14 +56,21 @@ function Profile() {
       return;
     }
 
-    const postsQuery = query(
+    console.log("Starting posts fetch for user:", userId);
+
+    // 1. جلب منشورات المستخدم أولاً
+    const userPostsQuery = query(
       collection(db, "posts"),
       where("userId", "==", userId)
     );
+
     const unsubscribe = onSnapshot(
-      postsQuery,
-      (snapshot) => {
-        const postsData = snapshot.docs.map((doc) => {
+      userPostsQuery,
+      async (snapshot) => {
+        console.log(`Received ${snapshot.docs.length} user posts`);
+
+        // تجهيز منشورات المستخدم
+        const userPosts = snapshot.docs.map((doc) => {
           const data = doc.data();
           return {
             id: doc.id,
@@ -73,20 +81,79 @@ function Profile() {
             mediaUrl: data.mediaUrl || "",
             liked: Boolean(data.liked),
             likeCount: Number(data.likeCount) || 0,
-            isOwnPost: data.userId === userId,
+            isOwnPost: true,
             isFriendPost: false,
           };
         });
 
-        postsData.sort(
-          (a, b) =>
-            normalizeTimestamp(b.timestamp) - normalizeTimestamp(a.timestamp)
-        );
-        setPosts(postsData);
+        // 2. جلب قائمة الأصدقاء
+        try {
+          const friendsQuery = query(
+            collection(db, "Friends"),
+            where("userId1", "==", userId)
+          );
+          const friendsSnapshot = await getDocs(friendsQuery);
+          const friendsList = friendsSnapshot.docs.map(
+            (doc) => doc.data().userId2
+          );
+
+          console.log("Friends list:", friendsList);
+
+          // 3. جلب منشورات الأصدقاء إذا وجدوا
+          if (friendsList.length > 0) {
+            const friendsPostsQuery = query(
+              collection(db, "posts"),
+              where("userId", "in", friendsList)
+            );
+
+            const friendsPostsSnapshot = await getDocs(friendsPostsQuery);
+            const friendsPosts = friendsPostsSnapshot.docs.map((doc) => {
+              const data = doc.data();
+              return {
+                id: doc.id,
+                text: data.text || "",
+                timestamp: data.timestamp,
+                userId: data.userId,
+                image: data.image || null,
+                mediaUrl: data.mediaUrl || "",
+                liked: Boolean(data.liked),
+                likeCount: Number(data.likeCount) || 0,
+                isOwnPost: false,
+                isFriendPost: true,
+              };
+            });
+
+            // 4. دمج وترتيب جميع المنشورات
+            const allPosts = [...userPosts, ...friendsPosts];
+            allPosts.sort((a, b) => {
+              const timeA = normalizeTimestamp(a.timestamp);
+              const timeB = normalizeTimestamp(b.timestamp);
+              return timeB - timeA;
+            });
+
+            console.log(
+              `Total posts after adding friends' posts: ${allPosts.length}`
+            );
+            setPosts(allPosts);
+          } else {
+            // إذا لم يكن هناك أصدقاء، نعرض منشورات المستخدم فقط
+            userPosts.sort((a, b) => {
+              const timeA = normalizeTimestamp(a.timestamp);
+              const timeB = normalizeTimestamp(b.timestamp);
+              return timeB - timeA;
+            });
+            setPosts(userPosts);
+          }
+        } catch (error) {
+          console.error("Error fetching friends posts:", error);
+          // في حالة الخطأ، نعرض منشورات المستخدم على الأقل
+          setPosts(userPosts);
+        }
+
         setLoadingPosts(false);
       },
       (error) => {
-        console.error("Error fetching posts:", error);
+        console.error("Error fetching user posts:", error);
         setError("Failed to load posts");
         setLoadingPosts(false);
       }
