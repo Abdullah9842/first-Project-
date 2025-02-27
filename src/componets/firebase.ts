@@ -39,8 +39,7 @@ const googleProvider = new GoogleAuthProvider();
 // Safari-optimized Firestore settings
 const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 const firestoreSettings: FirestoreSettings = {
-  experimentalForceLongPolling: isSafari,
-  experimentalAutoDetectLongPolling: true,
+  ...(isSafari ? { experimentalForceLongPolling: true } : { experimentalAutoDetectLongPolling: true }),
   localCache: persistentLocalCache({
     tabManager: persistentMultipleTabManager()
   })
