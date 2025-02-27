@@ -18,6 +18,8 @@ export interface Posts {
   mediaUrl?: string;
   userId: string; // مطلوبة
   timestamp: number;
+  username: string;
+  content: string;
 }
 
 // export interface Post {
@@ -31,13 +33,17 @@ export interface Posts {
 //   timestamp: number;
 // }
 
+import { Timestamp } from "firebase/firestore";
+
 export interface Post {
   id: string;
-  text: string;
+  text?: string;
+  timestamp: Timestamp | Date | string;
+  userId: string;
   image: string | null;
   liked: boolean;
   likeCount: number;
   mediaUrl?: string;
-  userId: string; // Required
-  timestamp?: number; // Optional
+  name?: string;
+  photoURL?: string;
 }
