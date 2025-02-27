@@ -44,7 +44,7 @@ function Profile() {
     try {
       await signOut(auth);
       navigate("/login");
-    } catch (error) {
+    } catch {
       console.error("Error logging out: ", error);
     }
   };
@@ -118,7 +118,7 @@ function Profile() {
               Array.from(friendsList)
             );
             return Array.from(friendsList);
-          } catch (error) {
+          } catch {
             if (retries > 0) {
               console.log(
                 `Retrying friends fetch. Attempts left: ${retries - 1}`
@@ -153,7 +153,7 @@ function Profile() {
               isOwnPost: false,
               isFriendPost: true,
             }));
-          } catch (error) {
+          } catch {
             if (retries > 0) {
               console.log(
                 `Retrying posts fetch for friend ${friendId}. Attempts left: ${
