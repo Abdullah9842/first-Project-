@@ -24,7 +24,6 @@ const app = initializeApp(firebaseConfig);
 // إعدادات Firestore مع دعم Safari
 const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
-  experimentalAutoDetectLongPolling: true,
   cacheSizeBytes: CACHE_SIZE_UNLIMITED
 });
 
