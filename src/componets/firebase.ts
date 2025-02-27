@@ -25,7 +25,6 @@ const app = initializeApp(firebaseConfig);
 // تهيئة Firestore مع إعدادات مخصصة
 const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
-  experimentalAutoDetectLongPolling: true,
   localCache: persistentLocalCache({
     tabManager: persistentSingleTabManager({ forceOwnership: true })
   })
