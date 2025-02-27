@@ -145,13 +145,13 @@ function Profile() {
                   console.log("Post data:", {
                     id: doc.id,
                     userId: postData.userId,
-                    timestamp: postTimestamp,
-                    text: postData.text?.substring(0, 20), // أول 20 حرف فقط
+                    currentUser: user.uid,
+                    isCurrentUser: postData.userId === user.uid,
                   });
 
                   // إذا كان المنشور للمستخدم نفسه، اعرضه دائماً
                   if (postData.userId === user.uid) {
-                    console.log("Showing user post:", doc.id);
+                    console.log("✅ Showing current user post:", doc.id);
                     return {
                       id: doc.id,
                       image: postData.image || null,
