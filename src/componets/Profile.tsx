@@ -151,6 +151,8 @@ function Profile() {
     if (!userId) return () => {};
 
     let friendsUnsubscribes: (() => void)[] = [];
+    let userPosts: Post[] = [];
+    let friendsPosts: Post[] = [];
 
     try {
       // Set up real-time listener for user's posts
@@ -159,87 +161,120 @@ function Profile() {
         where("userId", "==", userId)
       );
 
+      // First, set up the friends listeners
+      const setupFriendsListeners = async () => {
+        const friendsQuery1 = query(
+          collection(db, "Friends"),
+          where("userId1", "==", userId)
+        );
+        const friendsQuery2 = query(
+          collection(db, "Friends"),
+          where("userId2", "==", userId)
+        );
+
+        const [snapshot1, snapshot2] = await Promise.all([
+          getDocs(friendsQuery1),
+          getDocs(friendsQuery2),
+        ]);
+
+        const friendsWithDates = new Map<string, Date>();
+
+        snapshot1.docs.forEach((doc) => {
+          const data = doc.data();
+          friendsWithDates.set(data.userId2, data.friendshipDate.toDate());
+        });
+
+        snapshot2.docs.forEach((doc) => {
+          const data = doc.data();
+          friendsWithDates.set(data.userId1, data.friendshipDate.toDate());
+        });
+
+        // Cleanup previous friend listeners
+        friendsUnsubscribes.forEach((unsubscribe) => unsubscribe());
+        friendsUnsubscribes = [];
+
+        // Set up listeners for each friend's posts
+        friendsUnsubscribes = Array.from(friendsWithDates.entries()).map(
+          ([friendId, friendshipDate]) => {
+            const friendPostsQuery = query(
+              collection(db, "posts"),
+              where("userId", "==", friendId)
+            );
+
+            return onSnapshot(friendPostsQuery, (friendPostsSnapshot) => {
+              const newFriendPosts = friendPostsSnapshot.docs
+                .map((doc) => convertDocToPost(doc, false))
+                .filter((post) => {
+                  const postDate =
+                    post.timestamp instanceof Timestamp
+                      ? post.timestamp.toDate()
+                      : new Date(post.timestamp);
+                  return postDate >= friendshipDate;
+                });
+
+              friendsPosts = newFriendPosts;
+
+              // Combine and sort all posts
+              const allPosts = [...userPosts, ...friendsPosts].sort((a, b) => {
+                const timeA = normalizeTimestamp(a.timestamp);
+                const timeB = normalizeTimestamp(b.timestamp);
+                return timeB - timeA;
+              });
+
+              setPosts(allPosts);
+              setLoadingPosts(false);
+            });
+          }
+        );
+
+        if (friendsWithDates.size === 0) {
+          setPosts(userPosts);
+          setLoadingPosts(false);
+        }
+      };
+
+      // Set up user posts listener
       const unsubscribeUserPosts = onSnapshot(
         userPostsQuery,
         async (userPostsSnapshot) => {
-          const userPosts = userPostsSnapshot.docs.map((doc) =>
+          userPosts = userPostsSnapshot.docs.map((doc) =>
             convertDocToPost(doc, true)
           );
 
-          // Get friends list with friendship dates
-          const friendsQuery1 = query(
-            collection(db, "Friends"),
-            where("userId1", "==", userId)
-          );
-          const friendsQuery2 = query(
-            collection(db, "Friends"),
-            where("userId2", "==", userId)
-          );
-
-          const [snapshot1, snapshot2] = await Promise.all([
-            getDocs(friendsQuery1),
-            getDocs(friendsQuery2),
-          ]);
-
-          const friendsWithDates = new Map<string, Date>();
-
-          snapshot1.docs.forEach((doc) => {
-            const data = doc.data();
-            friendsWithDates.set(data.userId2, data.friendshipDate.toDate());
+          // Combine and sort all posts
+          const allPosts = [...userPosts, ...friendsPosts].sort((a, b) => {
+            const timeA = normalizeTimestamp(a.timestamp);
+            const timeB = normalizeTimestamp(b.timestamp);
+            return timeB - timeA;
           });
 
-          snapshot2.docs.forEach((doc) => {
-            const data = doc.data();
-            friendsWithDates.set(data.userId1, data.friendshipDate.toDate());
-          });
+          setPosts(allPosts);
+        }
+      );
 
-          // Cleanup previous friend listeners
-          friendsUnsubscribes.forEach((unsubscribe) => unsubscribe());
-          friendsUnsubscribes = [];
+      // Initial setup of friends listeners
+      setupFriendsListeners();
 
-          // Set up listeners for each friend's posts
-          friendsUnsubscribes = Array.from(friendsWithDates.entries()).map(
-            ([friendId, friendshipDate]) => {
-              const friendPostsQuery = query(
-                collection(db, "posts"),
-                where("userId", "==", friendId)
-              );
+      // Set up a listener for friends list changes
+      const unsubscribeFriendsChanges = onSnapshot(
+        query(collection(db, "Friends"), where("userId1", "==", userId)),
+        () => {
+          setupFriendsListeners();
+        }
+      );
 
-              return onSnapshot(friendPostsQuery, (friendPostsSnapshot) => {
-                const friendPosts = friendPostsSnapshot.docs
-                  .map((doc) => convertDocToPost(doc, false))
-                  .filter((post) => {
-                    const postDate =
-                      post.timestamp instanceof Timestamp
-                        ? post.timestamp.toDate()
-                        : new Date(post.timestamp);
-                    return postDate >= friendshipDate;
-                  });
-
-                // Combine and sort all posts
-                const allPosts = [...userPosts, ...friendPosts].sort((a, b) => {
-                  const timeA = normalizeTimestamp(a.timestamp);
-                  const timeB = normalizeTimestamp(b.timestamp);
-                  return timeB - timeA;
-                });
-
-                setPosts(allPosts);
-                setLoadingPosts(false);
-              });
-            }
-          );
-
-          // If there are no friends, just set user's posts
-          if (friendsWithDates.size === 0) {
-            setPosts(userPosts);
-            setLoadingPosts(false);
-          }
+      const unsubscribeFriendsChanges2 = onSnapshot(
+        query(collection(db, "Friends"), where("userId2", "==", userId)),
+        () => {
+          setupFriendsListeners();
         }
       );
 
       // Return cleanup function that unsubscribes all listeners
       return () => {
         unsubscribeUserPosts();
+        unsubscribeFriendsChanges();
+        unsubscribeFriendsChanges2();
         friendsUnsubscribes.forEach((unsubscribe) => unsubscribe());
       };
     } catch (error) {
