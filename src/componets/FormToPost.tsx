@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { storage, auth } from "./firebase";
-import { Timestamp, serverTimestamp } from "firebase/firestore";
+import { Timestamp } from "firebase/firestore";
 import { RiCloseLargeFill } from "react-icons/ri";
 import { BiSolidImageAdd } from "react-icons/bi";
 import { BsSendFill } from "react-icons/bs";
@@ -38,6 +38,22 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
 
   useEffect(() => {
     inputRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    const handleOnlineStatus = () => {
+      if (!navigator.onLine) {
+        alert("أنت غير متصل بالإنترنت. بعض الميزات قد لا تعمل.");
+      }
+    };
+
+    window.addEventListener("online", handleOnlineStatus);
+    window.addEventListener("offline", handleOnlineStatus);
+
+    return () => {
+      window.removeEventListener("online", handleOnlineStatus);
+      window.removeEventListener("offline", handleOnlineStatus);
+    };
   }, []);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -115,41 +131,63 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
     setIsLoading(true);
 
     try {
-      let finalImageUrl = null;
-      let finalAudioUrl = null;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("Request timeout")), 30000);
+      });
 
-      if (imageFile) {
-        const compressedImage = await compressImage(imageFile);
-        finalImageUrl = await uploadFile(compressedImage, "images");
+      interface UploadResult {
+        finalImageUrl: string | null;
+        finalAudioUrl: string | null;
       }
 
-      if (audioBlob) {
-        finalAudioUrl = await uploadFile(audioBlob, "audio");
-      }
+      const uploadPromise = async (): Promise<UploadResult> => {
+        let finalImageUrl = null;
+        let finalAudioUrl = null;
 
-      if (!text && !finalImageUrl && !finalAudioUrl && !spotifyUrl) {
+        if (imageFile) {
+          const compressedImage = await compressImage(imageFile);
+          finalImageUrl = await uploadFile(compressedImage, "images");
+        }
+
+        if (audioBlob) {
+          finalAudioUrl = await uploadFile(audioBlob, "audio");
+        }
+
+        return { finalImageUrl, finalAudioUrl };
+      };
+
+      const result = (await Promise.race([
+        uploadPromise(),
+        timeoutPromise,
+      ])) as UploadResult;
+
+      if (
+        !text &&
+        !result.finalImageUrl &&
+        !result.finalAudioUrl &&
+        !spotifyUrl
+      ) {
         setError("يجب إضافة نص أو وسائط للنشر");
         return;
       }
 
-      const currentTimestamp = Timestamp.now().toMillis();
-      const serverTime = serverTimestamp();
-
-      console.log("Server timestamp:", serverTime);
-
       await onSubmit(
         text,
-        finalImageUrl,
+        result.finalImageUrl,
         spotifyUrl,
-        finalAudioUrl,
-        currentTimestamp
+        result.finalAudioUrl,
+        Timestamp.now().toMillis()
       );
 
       resetForm();
       onClose();
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error creating post:", error);
-      setError("حدث خطأ أثناء إنشاء المنشور");
+      if (error instanceof Error && error.message === "Request timeout") {
+        setError("فشل الاتصال. يرجى المحاولة مرة أخرى.");
+      } else {
+        setError("حدث خطأ أثناء إنشاء المنشور");
+      }
     } finally {
       setIsSubmitting(false);
       setIsLoading(false);
