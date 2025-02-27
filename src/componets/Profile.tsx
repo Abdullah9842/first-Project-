@@ -99,15 +99,16 @@ function Profile() {
 
           console.log("Friends list:", friendsList);
 
-          // 3. جلب منشورات الأصدقاء إذا وجدوا
-          if (friendsList.length > 0) {
-            const friendsPostsQuery = query(
+          // 3. جلب منشورات كل صديق على حدة
+          const friendsPosts = [];
+          for (const friendId of friendsList) {
+            const friendPostsQuery = query(
               collection(db, "posts"),
-              where("userId", "in", friendsList)
+              where("userId", "==", friendId)
             );
 
-            const friendsPostsSnapshot = await getDocs(friendsPostsQuery);
-            const friendsPosts = friendsPostsSnapshot.docs.map((doc) => {
+            const friendPostsSnapshot = await getDocs(friendPostsQuery);
+            const posts = friendPostsSnapshot.docs.map((doc) => {
               const data = doc.data();
               return {
                 id: doc.id,
@@ -122,31 +123,26 @@ function Profile() {
                 isFriendPost: true,
               };
             });
-
-            // 4. دمج وترتيب جميع المنشورات
-            const allPosts = [...userPosts, ...friendsPosts];
-            allPosts.sort((a, b) => {
-              const timeA = normalizeTimestamp(a.timestamp);
-              const timeB = normalizeTimestamp(b.timestamp);
-              return timeB - timeA;
-            });
-
-            console.log(
-              `Total posts after adding friends' posts: ${allPosts.length}`
-            );
-            setPosts(allPosts);
-          } else {
-            // إذا لم يكن هناك أصدقاء، نعرض منشورات المستخدم فقط
-            userPosts.sort((a, b) => {
-              const timeA = normalizeTimestamp(a.timestamp);
-              const timeB = normalizeTimestamp(b.timestamp);
-              return timeB - timeA;
-            });
-            setPosts(userPosts);
+            friendsPosts.push(...posts);
           }
+
+          console.log(`Retrieved ${friendsPosts.length} friends' posts`);
+
+          // 4. دمج وترتيب جميع المنشورات
+          const allPosts = [...userPosts, ...friendsPosts];
+          allPosts.sort((a, b) => {
+            const timeA = normalizeTimestamp(a.timestamp);
+            const timeB = normalizeTimestamp(b.timestamp);
+            return timeB - timeA;
+          });
+
+          console.log(
+            `Total posts after adding friends' posts: ${allPosts.length}`
+          );
+          setPosts(allPosts);
         } catch (error) {
           console.error("Error fetching friends posts:", error);
-          // في حالة الخطأ، نعرض منشورات المستخدم على الأقل
+          // في حالة الخطأ، نعرض منشورات المستخدم فقط
           setPosts(userPosts);
         }
 
