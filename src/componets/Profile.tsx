@@ -5,7 +5,6 @@ import {
   collection,
   query,
   where,
-  onSnapshot,
   Timestamp,
   deleteDoc,
   doc,
@@ -58,14 +57,17 @@ function Profile() {
     }
 
     console.log("Starting posts fetch for user:", userId);
+    setLoadingPosts(true);
 
-    let allPosts: Post[] = [];
-
-    // 1. جلب منشورات المستخدم
-    const userPostsUnsubscribe = onSnapshot(
-      query(collection(db, "posts"), where("userId", "==", userId)),
-      (snapshot) => {
-        const userPosts = snapshot.docs.map((doc) => ({
+    const fetchAllPosts = async () => {
+      try {
+        // 1. First fetch user's own posts
+        const userPostsQuery = query(
+          collection(db, "posts"),
+          where("userId", "==", userId)
+        );
+        const userPostsSnapshot = await getDocs(userPostsQuery);
+        const userPosts = userPostsSnapshot.docs.map((doc) => ({
           id: doc.id,
           text: doc.data().text || "",
           timestamp: doc.data().timestamp,
@@ -78,32 +80,28 @@ function Profile() {
           isFriendPost: false,
         }));
 
-        allPosts = [...userPosts];
-        updatePosts();
-      },
-      (error) => {
-        console.error("Error fetching user posts:", error);
-        setError("Failed to load user posts");
-      }
-    );
+        // 2. Fetch friends list
+        const friendsQuery = query(
+          collection(db, "Friends"),
+          where("userId1", "==", userId)
+        );
+        const friendsSnapshot = await getDocs(friendsQuery);
+        const friendsList = friendsSnapshot.docs.map(
+          (doc) => doc.data().userId2
+        );
 
-    // 2. جلب وتتبع قائمة الأصدقاء
-    const friendsUnsubscribe = onSnapshot(
-      query(collection(db, "Friends"), where("userId1", "==", userId)),
-      async (friendsSnapshot) => {
-        try {
-          const friendsList = friendsSnapshot.docs.map(
-            (doc) => doc.data().userId2
-          );
-          console.log("Friends list:", friendsList);
+        console.log("Friends list:", friendsList);
 
-          // محاولة جلب منشورات الأصدقاء باستخدام getDocs أولاً
-          for (const friendId of friendsList) {
-            const friendPostsSnapshot = await getDocs(
-              query(collection(db, "posts"), where("userId", "==", friendId))
+        // 3. Fetch friends' posts
+        const friendsPosts = [];
+        for (const friendId of friendsList) {
+          try {
+            const friendPostsQuery = query(
+              collection(db, "posts"),
+              where("userId", "==", friendId)
             );
-
-            const friendPosts = friendPostsSnapshot.docs.map((doc) => ({
+            const friendPostsSnapshot = await getDocs(friendPostsQuery);
+            const posts = friendPostsSnapshot.docs.map((doc) => ({
               id: doc.id,
               text: doc.data().text || "",
               timestamp: doc.data().timestamp,
@@ -115,74 +113,36 @@ function Profile() {
               isOwnPost: false,
               isFriendPost: true,
             }));
-
-            allPosts = allPosts.filter((post) => post.userId !== friendId);
-            allPosts = [...allPosts, ...friendPosts];
-            updatePosts();
+            friendsPosts.push(...posts);
+          } catch (error) {
+            console.error(
+              `Error fetching posts for friend ${friendId}:`,
+              error
+            );
           }
-
-          // 3. إنشاء مستمعين لتحديثات منشورات الأصدقاء
-          const friendPostsUnsubscribes = friendsList.map((friendId) =>
-            onSnapshot(
-              query(collection(db, "posts"), where("userId", "==", friendId)),
-              (friendPostsSnapshot) => {
-                const friendPosts = friendPostsSnapshot.docs.map((doc) => ({
-                  id: doc.id,
-                  text: doc.data().text || "",
-                  timestamp: doc.data().timestamp,
-                  userId: doc.data().userId,
-                  image: doc.data().image || null,
-                  mediaUrl: doc.data().mediaUrl || "",
-                  liked: Boolean(doc.data().liked),
-                  likeCount: Number(doc.data().likeCount) || 0,
-                  isOwnPost: false,
-                  isFriendPost: true,
-                }));
-
-                allPosts = allPosts.filter((post) => post.userId !== friendId);
-                allPosts = [...allPosts, ...friendPosts];
-                updatePosts();
-              },
-              (error) => {
-                console.error(
-                  `Error fetching friend posts for ${friendId}:`,
-                  error
-                );
-                setError(`Failed to load posts for a friend`);
-              }
-            )
-          );
-
-          return () => {
-            friendPostsUnsubscribes.forEach((unsubscribe) => unsubscribe());
-          };
-        } catch (error) {
-          console.error("Error processing friends:", error);
-          setError("Failed to load friends' posts");
         }
-      },
-      (error) => {
-        console.error("Error fetching friends list:", error);
-        setError("Failed to load friends list");
+
+        // 4. Combine and sort all posts
+        const allPosts = [...userPosts, ...friendsPosts].sort((a, b) => {
+          const timeA = normalizeTimestamp(a.timestamp);
+          const timeB = normalizeTimestamp(b.timestamp);
+          return timeB - timeA;
+        });
+
+        console.log("Total posts fetched:", allPosts.length);
+        setPosts(allPosts);
+        setLoadingPosts(false);
+      } catch (error) {
+        console.error("Error fetching posts:", error);
+        setError("Failed to load posts");
+        setLoadingPosts(false);
       }
-    );
-
-    // دالة مساعدة لترتيب وتحديث المنشورات
-    const updatePosts = () => {
-      const sortedPosts = [...allPosts].sort((a, b) => {
-        const timeA = normalizeTimestamp(a.timestamp);
-        const timeB = normalizeTimestamp(b.timestamp);
-        return timeB - timeA;
-      });
-      setPosts(sortedPosts);
-      setLoadingPosts(false);
     };
 
-    // تنظيف جميع المستمعين
-    return () => {
-      userPostsUnsubscribe();
-      friendsUnsubscribe();
-    };
+    fetchAllPosts();
+
+    // No need for cleanup function as we're not using real-time listeners
+    return () => {};
   }, [userId]);
 
   const handleDelete = async (postId: string) => {
