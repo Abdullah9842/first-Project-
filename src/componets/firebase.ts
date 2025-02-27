@@ -144,8 +144,6 @@
 
 
 
-
-
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, type Auth } from 'firebase/auth';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
@@ -182,11 +180,10 @@ const auth = getAuth(app);
 const storage = getStorage(app);
 const googleProvider = new GoogleAuthProvider();
 
-// ✅ Firestore Settings (Optimized for Safari)
+// ✅ Firestore Settings (Fixed for Safari)
 const firestoreSettings: FirestoreSettings = {
   experimentalForceLongPolling: true, // Fix for Safari
-  ignoreUndefinedProperties: true,
-  ssl: true
+  ignoreUndefinedProperties: true
 };
 
 // ✅ Initialize Firestore with settings
