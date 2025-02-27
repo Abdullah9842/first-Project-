@@ -34,13 +34,16 @@ const auth = getAuth(app);
 const storage = getStorage(app);
 const googleProvider = new GoogleAuthProvider();
 
-// Safari-optimized Firestore settings
-const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+// Optimized Firestore settings for cross-browser compatibility
 const firestoreSettings: FirestoreSettings = {
-  experimentalForceLongPolling: isSafari, // Force long polling for Safari
+  experimentalForceLongPolling: true, // Force long polling for all browsers to ensure consistency
+  experimentalAutoDetectLongPolling: false, // Disable auto-detection
   localCache: persistentLocalCache({
     tabManager: persistentMultipleTabManager()
-  })
+  }),
+  ssl: true, // Ensure SSL is used
+  host: 'firestore.googleapis.com', // Explicitly set the host
+  ignoreUndefinedProperties: true // Ignore undefined properties to prevent errors
 };
 
 // Initialize Firestore with optimized settings
