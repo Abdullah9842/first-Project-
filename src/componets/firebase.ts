@@ -3,37 +3,21 @@ import { getAuth, GoogleAuthProvider, onAuthStateChanged } from "firebase/auth";
 import { getStorage, FirebaseStorage } from "firebase/storage";
 import { getFirestore, Firestore } from "firebase/firestore";
 
-// إعداد Firebase باستخدام المتغيرات البيئية
+// تكوين Firebase مباشر
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
+  apiKey: "AIzaSyCGx4Zjd2X9LoMGvNf42x9YKAyZ1xjSrGo",
+  authDomain: "jadeksa-69140.firebaseapp.com",
+  projectId: "jadeksa-69140",
+  storageBucket: "jadeksa-69140.firebasestorage.app",
+  messagingSenderId: "597164029013",
+  appId: "1:597164029013:web:72272a88da2a33aa5190dc",
+  measurementId: "G-6PJL6V2KJG"
 };
-
-// تحقق من وجود المتغيرات البيئية المطلوبة
-const requiredEnvVars = [
-  'VITE_FIREBASE_API_KEY',
-  'VITE_FIREBASE_AUTH_DOMAIN',
-  'VITE_FIREBASE_PROJECT_ID',
-  'VITE_FIREBASE_STORAGE_BUCKET',
-  'VITE_FIREBASE_MESSAGING_SENDER_ID',
-  'VITE_FIREBASE_APP_ID'
-];
-
-requiredEnvVars.forEach(varName => {
-  if (!import.meta.env[varName]) {
-    throw new Error(`Missing required environment variable: ${varName}`);
-  }
-});
 
 // تهيئة Firebase
 const app = initializeApp(firebaseConfig);
 
-// تصدير خدمة المصادقة (Authentication)
+// تصدير خدمة المصادقة
 const auth = getAuth(app);
 
 // تصدير خدمة Firestore
@@ -42,7 +26,7 @@ const db: Firestore = getFirestore(app);
 // تصدير Google Auth Provider
 const googleProvider = new GoogleAuthProvider();
 
-// تصدير خدمة التخزين (Storage)
+// تصدير خدمة التخزين
 const storage: FirebaseStorage = getStorage(app);
 
 // تصدير المتغيرات بحيث يمكن استخدامها في باقي أجزاء التطبيق
