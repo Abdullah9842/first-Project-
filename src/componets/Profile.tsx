@@ -6,7 +6,6 @@ import {
   collection,
   query,
   where,
-  limit,
   onSnapshot,
   getDocs,
   deleteDoc,
@@ -26,6 +25,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Post } from "./PostInterface";
 import { FaUserFriends } from "react-icons/fa";
 import PostSkeleton from "./PostSkeleton";
+import { normalizeTimestamp } from "./PostInterface";
 
 interface User {
   userId: string;
@@ -58,144 +58,67 @@ function Profile() {
   };
 
   useEffect(() => {
+    const fetchFriendsCount = async () => {
+      if (!userId) return;
+
+      try {
+        const friendsQuery = query(
+          collection(db, "Friends"),
+          where("userId1", "==", userId)
+        );
+
+        const friendsSnapshot = await getDocs(friendsQuery);
+        setFriendsCount(friendsSnapshot.size);
+      } catch (error) {
+        console.error("Error fetching friends count:", error);
+      }
+    };
+
+    fetchFriendsCount();
+  }, [userId]);
+
+  useEffect(() => {
     const fetchData = async () => {
-      const user = auth.currentUser;
-      if (!user) {
-        console.log("No authenticated user found");
+      if (!userId) {
         setLoadingPosts(false);
         return;
       }
 
       try {
-        console.log("Starting data fetch for user:", user.uid);
-
-        // جلب بيانات الأصدقاء
-        const friendsQuery1 = query(
-          collection(db, "Friends"),
-          where("userId1", "==", user.uid)
-        );
-        const friendsQuery2 = query(
-          collection(db, "Friends"),
-          where("userId2", "==", user.uid)
-        );
-
-        console.log("Fetching friends data...");
-        const [friendsSnapshot1, friendsSnapshot2] = await Promise.all([
-          getDocs(friendsQuery1).catch((error) => {
-            console.error("Error fetching friends query 1:", error);
-            return { docs: [] };
-          }),
-          getDocs(friendsQuery2).catch((error) => {
-            console.error("Error fetching friends query 2:", error);
-            return { docs: [] };
-          }),
-        ]);
-
-        const friendsList = [
-          ...friendsSnapshot1.docs.map((doc) => ({
-            userId: doc.data().userId2,
-            friendshipDate: doc.data().friendshipDate || 0,
-          })),
-          ...friendsSnapshot2.docs.map((doc) => ({
-            userId: doc.data().userId1,
-            friendshipDate: doc.data().friendshipDate || 0,
-          })),
-        ];
-
-        console.log("Friends list fetched:", friendsList);
-        setFriendsCount(friendsList.length);
-
-        // جلب المنشورات
-        const userAndFriendIds = [
-          user.uid,
-          ...friendsList.map((friend) => friend.userId),
-        ];
-        console.log("Fetching posts for users:", userAndFriendIds);
-
-        if (userAndFriendIds.length === 0) {
-          console.log("No users to fetch posts for");
-          setLoadingPosts(false);
-          return;
-        }
-
         const postsQuery = query(
-          collection(db, "Posts"),
-          where("userId", "in", userAndFriendIds),
-          orderBy("timestamp", "desc"),
-          limit(10)
+          collection(db, "posts"),
+          where("userId", "==", userId),
+          orderBy("timestamp", "desc")
         );
 
-        const unsubscribe = onSnapshot(
-          postsQuery,
-          (snapshot) => {
-            console.log(
-              "Posts snapshot received, docs count:",
-              snapshot.docs.length
-            );
-            const postsData = snapshot.docs
-              .map((doc) => {
-                try {
-                  const postData = doc.data();
-                  console.log("Processing post:", {
-                    id: doc.id,
-                    userId: postData.userId,
-                    profileUserId: userId,
-                    isProfileUser: postData.userId === userId,
-                    text: postData.text,
-                  });
+        const unsubscribe = onSnapshot(postsQuery, (snapshot) => {
+          const postsData: Post[] = snapshot.docs.map((doc) => {
+            const data = doc.data();
 
-                  // تحويل التاريخ
-                  const postTimestamp =
-                    postData.timestamp?.toMillis?.() ||
-                    postData.timestamp ||
-                    Date.now();
+            const post: Post = {
+              id: doc.id,
+              text: data.text || "",
+              timestamp: normalizeTimestamp(data.timestamp),
+              userId: data.userId || "",
+              image: data.image || null,
+              mediaUrl: data.mediaUrl || "",
+              liked: Boolean(data.liked),
+              likeCount: Number(data.likeCount) || 0,
+              isOwnPost: data.userId === userId,
+              isFriendPost: false,
+            };
 
-                  // إذا كنا في صفحة الملف الشخصي للمستخدم، نعرض منشوراته فقط
-                  if (postData.userId === userId) {
-                    console.log("✅ Showing post for profile user:", doc.id);
-                    return {
-                      id: doc.id,
-                      image: postData.image || null,
-                      text: postData.text,
-                      liked: postData.liked || false,
-                      likeCount: postData.likeCount || 0,
-                      mediaUrl: postData.mediaUrl,
-                      userId: postData.userId || "",
-                      timestamp: postTimestamp,
-                    };
-                  }
+            return post;
+          });
 
-                  // إذا لم يكن المنشور للمستخدم المطلوب، نتجاهله
-                  console.log(
-                    "❌ Skipping post - not for profile user:",
-                    doc.id
-                  );
-                  return null;
-                } catch (error) {
-                  console.error("Error processing post:", error);
-                  return null;
-                }
-              })
-              .filter((post) => post !== null);
+          setPosts(postsData);
+          setLoadingPosts(false);
+        });
 
-            console.log("Final posts count:", postsData.length);
-            setPosts(postsData);
-            setLoadingPosts(false);
-          },
-          (error) => {
-            console.error("Error in posts snapshot:", error);
-            setError("Failed to load posts. Please try again later.");
-            setLoadingPosts(false);
-          }
-        );
-
-        return () => {
-          console.log("Cleaning up posts subscription");
-          unsubscribe();
-        };
+        return () => unsubscribe();
       } catch (error) {
-        console.error("Error in fetchData:", error);
-        setError("Failed to load posts. Please try again later.");
+        console.error("Error fetching posts:", error);
+        setError("Failed to load posts");
         setLoadingPosts(false);
       }
     };

@@ -33,18 +33,34 @@ export interface Posts {
 //   timestamp: number;
 // }
 
-import { Timestamp } from "firebase/firestore";
+import { Timestamp } from 'firebase/firestore';
 
 export interface Post {
   id: string;
   text: string;
-  timestamp: Timestamp;
+  timestamp: string | Timestamp | Date;  // تأكد من توحيد النوع
   userId: string;
   image: string | null;
+  mediaUrl?: string;
   liked: boolean;
   likeCount: number;
-  mediaUrl?: string;
-  name?: string;
-  photoURL?: string;
-  spotifyUrl?: string;
+  isOwnPost: boolean;
+  isFriendPost: boolean;
 }
+
+// helper function للتعامل مع التواريخ
+export const normalizeTimestamp = (timestamp: string | Timestamp | Date | number): string | Timestamp | Date => {
+  if (timestamp instanceof Timestamp) {
+    return timestamp;
+  }
+  if (timestamp instanceof Date) {
+    return timestamp;
+  }
+  if (typeof timestamp === 'string') {
+    return timestamp;
+  }
+  if (typeof timestamp === 'number') {
+    return new Date(timestamp);
+  }
+  return new Date();
+};
