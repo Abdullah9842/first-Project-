@@ -5,21 +5,55 @@ interface MediaHandlingProps {
 }
 
 const MediaHandling: React.FC<MediaHandlingProps> = ({ spotifyUrl }) => {
-  const isValidSpotifyUrl = (url: string): boolean => {
-    const regex = /https:\/\/open.spotify.com\/track\/([a-zA-Z0-9]+)/;
-    return regex.test(url);
+  const getSpotifyEmbedUrl = (url: string): string | null => {
+    try {
+      // Handle different Spotify URL formats
+      const patterns = [
+        /https?:\/\/open\.spotify\.com\/track\/([a-zA-Z0-9]+)(?:\?.*)?$/,
+        /https?:\/\/open\.spotify\.com\/album\/([a-zA-Z0-9]+)(?:\?.*)?$/,
+        /https?:\/\/open\.spotify\.com\/playlist\/([a-zA-Z0-9]+)(?:\?.*)?$/,
+        /spotify:track:([a-zA-Z0-9]+)/,
+        /spotify:album:([a-zA-Z0-9]+)/,
+        /spotify:playlist:([a-zA-Z0-9]+)/,
+      ];
+
+      for (const pattern of patterns) {
+        const match = url.match(pattern);
+        if (match) {
+          const id = match[1];
+          const type = url.includes("track")
+            ? "track"
+            : url.includes("album")
+            ? "album"
+            : "playlist";
+          return `https://open.spotify.com/embed/${type}/${id}`;
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    }
   };
 
-  if (!isValidSpotifyUrl(spotifyUrl)) {
+  const embedUrl = getSpotifyEmbedUrl(spotifyUrl);
+
+  if (!embedUrl) {
     return null;
   }
 
   return (
-    <iframe
-      src={`https://open.spotify.com/embed/track/${spotifyUrl.split('/').pop()}`}
-      className="w-full h-24 md:h-32 lg:h-40 rounded-lg"
-      allow="encrypted-media"
-    ></iframe>
+    <div className="w-full my-2">
+      <iframe
+        src={embedUrl}
+        width="100%"
+        height="80"
+        frameBorder="0"
+        allowFullScreen
+        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+        loading="lazy"
+        className="rounded-md"
+      ></iframe>
+    </div>
   );
 };
 

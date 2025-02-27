@@ -3,6 +3,7 @@ import { AiFillDelete } from "react-icons/ai";
 import { FaHeart, FaRegHeart } from "react-icons/fa";
 import { deleteDoc, doc, getDoc, Timestamp } from "firebase/firestore";
 import { db } from "./firebase";
+import MediaHandling from "./MediaHandling";
 import "../index.css";
 
 interface Users {
@@ -102,7 +103,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete, onLike }) => {
 
   if (isLoading) {
     return (
-      <div className="bg-gray-400 rounded-3xl overflow-hidden shadow-md w-full max-w-lg mb-4 animate-pulse">
+      <div className="bg-gray-400 rounded-l-md overflow-hidden shadow-md w-full max-w-lg mb-4 animate-pulse">
         <div className="p-4 flex items-center">
           {/* Profile Image Skeleton */}
           <div className="w-8 h-8 rounded-md bg-gray-500 mr-3 flex-shrink-0" />
@@ -152,21 +153,27 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete, onLike }) => {
       </div>
 
       {/* Content */}
-      {post.text && (
-        <div className="px-4 mb-4">
-          <p className="text-white">{post.text}</p>
-        </div>
-      )}
-
-      {/* Media */}
+      {/* Image */}
       {post.image && (
         <div className="w-full">
           <img src={post.image} alt="Post content" className="w-full" />
         </div>
       )}
+      {/* Text */}
+      {post.text && (
+        <div className="px-4 mt-5 mb-4">
+          <p className="text-white">{post.text}</p>
+        </div>
+      )}
+      {/* Spotify Embed */}
+      {post.mediaUrl && (
+        <div className="px-2 mb-2">
+          <MediaHandling spotifyUrl={post.mediaUrl} />
+        </div>
+      )}
 
       {/* Actions */}
-      <div className="px-4 py-4 flex justify-between items-center">
+      <div className="px-4 py-2 flex justify-between items-center">
         <button
           onClick={() => onLike(post.id)}
           className="flex items-center text-white"

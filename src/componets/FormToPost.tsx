@@ -7,6 +7,7 @@ import { BiSolidImageAdd } from "react-icons/bi";
 import { BsSendFill } from "react-icons/bs";
 import { FaSpotify } from "react-icons/fa";
 import { FaMicrophone } from "react-icons/fa";
+import MediaHandling from "./MediaHandling";
 
 interface FormToPostProps {
   onSubmit: (
@@ -122,6 +123,29 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
   const handleStopRecording = () => {
     mediaRecorderRef.current?.stop();
     setIsRecording(false);
+  };
+
+  const validateSpotifyUrl = (url: string): boolean => {
+    const patterns = [
+      /https?:\/\/open\.spotify\.com\/track\/[a-zA-Z0-9]+/,
+      /https?:\/\/open\.spotify\.com\/album\/[a-zA-Z0-9]+/,
+      /https?:\/\/open\.spotify\.com\/playlist\/[a-zA-Z0-9]+/,
+      /spotify:track:[a-zA-Z0-9]+/,
+      /spotify:album:[a-zA-Z0-9]+/,
+      /spotify:playlist:[a-zA-Z0-9]+/,
+    ];
+    return patterns.some((pattern) => pattern.test(url));
+  };
+
+  const handleSpotifyUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const url = e.target.value;
+    setSpotifyUrl(url);
+
+    if (url && !validateSpotifyUrl(url)) {
+      setError("Please enter a valid Spotify track, album, or playlist URL");
+    } else {
+      setError("");
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -351,6 +375,22 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
           </div>
         )}
 
+        {/* Add Spotify Preview */}
+        {spotifyUrl && validateSpotifyUrl(spotifyUrl) && (
+          <div className="relative w-full mb-4">
+            <MediaHandling spotifyUrl={spotifyUrl} />
+            <button
+              className="absolute top-2 right-2 bg-white text-gray-500 rounded-full p-2 hover:bg-gray-200 shadow-md hover:scale-110 transition-all"
+              onClick={() => {
+                setSpotifyUrl("");
+                setIsSpotifyOpen(false);
+              }}
+            >
+              <RiCloseLargeFill className="w-5 h-5" />
+            </button>
+          </div>
+        )}
+
         <textarea
           ref={inputRef}
           className="w-full p-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 mb-4 text-lg placeholder-gray-400 transition-all"
@@ -360,7 +400,7 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
         />
 
         <div className="flex gap-4 mb-4 items-center justify-between">
-          {!isSpotifyOpen && (
+          {!isSpotifyOpen && !spotifyUrl && (
             <button
               type="button"
               className="text-3xl text-green-500 hover:text-green-400 transform hover:scale-110 transition-all"
@@ -375,14 +415,17 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
               <input
                 type="text"
                 className="p-2 border-2 border-gray-300 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="أدخل رابط الأغنية"
+                placeholder="Paste Spotify URL (track/album/playlist)"
                 value={spotifyUrl}
-                onChange={(e) => setSpotifyUrl(e.target.value)}
+                onChange={handleSpotifyUrlChange}
               />
               <button
                 type="button"
                 className="text-2xl text-red-500 hover:text-red-400"
-                onClick={handleSpotifyToggle}
+                onClick={() => {
+                  setSpotifyUrl("");
+                  setIsSpotifyOpen(false);
+                }}
               >
                 <RiCloseLargeFill className="w-6 h-6" />
               </button>
