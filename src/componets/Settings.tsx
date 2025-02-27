@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { db, auth } from "./firebase";
+import { db, auth, storage } from "./firebase";
 import {
   doc,
   getDoc,
@@ -9,18 +9,21 @@ import {
   where,
   getDocs,
 } from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
+import { ref, uploadString, getDownloadURL } from "firebase/storage";
+import { onAuthStateChanged, updateProfile } from "firebase/auth";
 
 interface SettingsProps {
   userId: string;
   onClose: () => void;
   handleLogout: () => Promise<void>;
+  onProfileUpdate?: () => void;
 }
 
 const Settings: React.FC<SettingsProps> = ({
   userId,
   onClose,
   handleLogout,
+  onProfileUpdate,
 }) => {
   const [name, setName] = useState<string>("");
   const [username, setUsername] = useState<string>("");
@@ -31,6 +34,7 @@ const Settings: React.FC<SettingsProps> = ({
   const [lastUsernameChange, setLastUsernameChange] = useState<Date | null>(
     null
   );
+  const [isImageChanged, setIsImageChanged] = useState(false);
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -50,7 +54,8 @@ const Settings: React.FC<SettingsProps> = ({
           );
           setEmail(userData.email || "");
         }
-      } catch {
+      } catch (error) {
+        console.error("Error fetching user data:", error);
         setError("حدث خطأ أثناء تحميل البيانات!");
       }
     };
@@ -138,6 +143,14 @@ const Settings: React.FC<SettingsProps> = ({
     });
   };
 
+  const uploadImageToStorage = async (
+    imageDataUrl: string
+  ): Promise<string> => {
+    const imageRef = ref(storage, `profile_pictures/${userId}_${Date.now()}`);
+    await uploadString(imageRef, imageDataUrl, "data_url");
+    return getDownloadURL(imageRef);
+  };
+
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -156,14 +169,8 @@ const Settings: React.FC<SettingsProps> = ({
         }
 
         const compressedImage = await compressImage(file);
-
-        const base64Size = compressedImage.length * 0.75;
-        if (base64Size > MAX_FILE_SIZE) {
-          setError("الصورة كبيرة جداً حتى بعد الضغط. يرجى اختيار صورة أصغر.");
-          return;
-        }
-
         setPhotoURL(compressedImage);
+        setIsImageChanged(true);
       } catch (error) {
         console.error("Error processing image:", error);
         setError("حدث خطأ أثناء معالجة الصورة");
@@ -205,16 +212,36 @@ const Settings: React.FC<SettingsProps> = ({
         }
       }
 
+      let finalPhotoURL = photoURL;
+      if (isImageChanged && photoURL) {
+        finalPhotoURL = await uploadImageToStorage(photoURL);
+      }
+
       const userDocRef = doc(db, "Users", userId);
-      await updateDoc(userDocRef, {
+      const updateData = {
         name,
         username: username.toLowerCase(),
-        photoURL,
+        photoURL: finalPhotoURL,
         lastUsernameChange: new Date().toISOString(),
-      });
+        updatedAt: new Date().toISOString(),
+      };
+
+      await updateDoc(userDocRef, updateData);
+
+      if (auth.currentUser) {
+        await updateProfile(auth.currentUser, {
+          displayName: name,
+          photoURL: finalPhotoURL,
+        });
+      }
 
       setLastUsernameChange(new Date());
       setError("");
+      setIsImageChanged(false);
+
+      alert("تم حفظ التغييرات بنجاح!");
+      onProfileUpdate?.();
+      onClose();
     } catch (error) {
       console.error("Error saving profile:", error);
       setError("حدث خطأ أثناء حفظ البيانات!");

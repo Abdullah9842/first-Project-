@@ -37,17 +37,9 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete, onLike }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // استخدام useCallback لمنع إعادة إنشاء الدالة في كل render
+  // Modify fetchUserData to always get fresh data
   const fetchUserData = useCallback(async () => {
     if (!post?.userId) {
-      setIsLoading(false);
-      return;
-    }
-
-    // تحقق من وجود البيانات في الذاكرة المؤقتة
-    const cachedData = sessionStorage.getItem(`user_${post.userId}`);
-    if (cachedData) {
-      setUserData(JSON.parse(cachedData));
       setIsLoading(false);
       return;
     }
@@ -61,16 +53,12 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete, onLike }) => {
       }
 
       const data = userDoc.data();
-
-      // إضافة القيم الافتراضية إذا كانت البيانات غير كاملة
       const userData = {
         id: userDoc.id,
         name: data?.name || DEFAULT_NAME,
         photoURL: data?.photoURL || DEFAULT_AVATAR,
       };
 
-      // تخزين البيانات في الذاكرة المؤقتة
-      sessionStorage.setItem(`user_${post.userId}`, JSON.stringify(userData));
       setUserData(userData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error occurred");
@@ -110,7 +98,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete, onLike }) => {
 
   useEffect(() => {
     fetchUserData();
-  }, [fetchUserData]);
+  }, [fetchUserData, post.userId]); // Add post.userId to dependencies
 
   if (isLoading) {
     return (
@@ -146,7 +134,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete, onLike }) => {
     <div className="bg-gray-400 rounded-3xl overflow-hidden shadow-md w-full max-w-lg mb-4">
       <div className="p-4 flex items-center">
         {/* Profile Image */}
-        <div className="w-8 h-8 rounded-md overflow-hidden mr-3 flex-shrink-0">
+        <div className="w-9 h-9 rounded-full overflow-hidden mr-3 flex-shrink-0">
           {!isLoading && userData?.photoURL && (
             <img
               src={userData.photoURL}
@@ -158,7 +146,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete, onLike }) => {
         </div>
 
         {/* User Name */}
-        <span className="text-lg font-medium truncate">
+        <span className="text-lg text-white font-medium truncate">
           {isLoading ? "Loading..." : error ? "Unknown User" : userData?.name}
         </span>
       </div>

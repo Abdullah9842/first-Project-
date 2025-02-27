@@ -126,7 +126,11 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUser) return;
+    if (!currentUser?.uid) {
+      console.error("No user logged in");
+      return;
+    }
+
     setIsSubmitting(true);
     setIsLoading(true);
 
@@ -171,12 +175,15 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
         return;
       }
 
+      const timestamp = Timestamp.now().toMillis();
+
+      // Use the onSubmit prop instead of directly adding to Firestore
       await onSubmit(
         text,
         result.finalImageUrl,
         spotifyUrl,
         result.finalAudioUrl,
-        Timestamp.now().toMillis()
+        timestamp
       );
 
       resetForm();

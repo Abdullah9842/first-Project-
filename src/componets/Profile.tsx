@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import PostCard from "./PostCard";
 import FormToPost from "./FormToPost";
 import {
@@ -11,6 +11,9 @@ import {
   updateDoc,
   addDoc,
   getDocs,
+  DocumentData,
+  QueryDocumentSnapshot,
+  onSnapshot,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { signOut } from "firebase/auth";
@@ -20,6 +23,7 @@ import { Post } from "./PostInterface";
 import { FaUserFriends } from "react-icons/fa";
 import Settings from "./Settings";
 import { MdOutlineSettingsSuggest } from "react-icons/md";
+import { IoMdAdd } from "react-icons/io";
 
 const normalizeTimestamp = (
   timestamp: Timestamp | Date | string | number | null
@@ -31,6 +35,24 @@ const normalizeTimestamp = (
   return Date.now();
 };
 
+const PostSkeleton = () => (
+  <div className="bg-gray-400 rounded-3xl overflow-hidden shadow-md w-full max-w-lg mb-4 animate-pulse">
+    <div className="p-4 flex items-center">
+      <div className="w-8 h-8 bg-gray-500 rounded-md mr-3" />
+      <div className="h-4 bg-gray-500 rounded w-24" />
+    </div>
+    <div className="px-4 mb-4">
+      <div className="h-4 bg-gray-500 rounded w-3/4 mb-2" />
+      <div className="h-4 bg-gray-500 rounded w-1/2" />
+    </div>
+    <div className="h-48 bg-gray-500 w-full" />
+    <div className="px-4 py-4 flex justify-between items-center">
+      <div className="w-16 h-4 bg-gray-500 rounded" />
+      <div className="w-8 h-4 bg-gray-500 rounded" />
+    </div>
+  </div>
+);
+
 function Profile() {
   const { userId } = useParams<{ userId: string }>();
   const [posts, setPosts] = useState<Post[]>([]);
@@ -38,16 +60,168 @@ function Profile() {
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [loadingPosts, setLoadingPosts] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
+  const [friendCount, setFriendCount] = useState<number>(0);
   const navigate = useNavigate();
+
+  // Helper function to convert Firestore doc to Post type
+  const convertDocToPost = useCallback(
+    (doc: QueryDocumentSnapshot<DocumentData>, isOwnPost: boolean): Post => ({
+      id: doc.id,
+      text: doc.data().text || "",
+      timestamp: doc.data().timestamp,
+      userId: doc.data().userId,
+      image: doc.data().image || null,
+      mediaUrl: doc.data().mediaUrl || "",
+      liked: Boolean(doc.data().liked),
+      likeCount: Number(doc.data().likeCount) || 0,
+      isOwnPost,
+      isFriendPost: !isOwnPost,
+    }),
+    []
+  );
+
+  const fetchFriendsWithRetry = useCallback(
+    async (retries = 3): Promise<string[]> => {
+      try {
+        const friendsQuery1 = query(
+          collection(db, "Friends"),
+          where("userId1", "==", userId)
+        );
+        const friendsQuery2 = query(
+          collection(db, "Friends"),
+          where("userId2", "==", userId)
+        );
+
+        const [snapshot1, snapshot2] = await Promise.all([
+          getDocs(friendsQuery1),
+          getDocs(friendsQuery2),
+        ]);
+
+        const friendsList = new Set<string>();
+
+        snapshot1.docs.forEach((doc) => {
+          friendsList.add(doc.data().userId2);
+        });
+
+        snapshot2.docs.forEach((doc) => {
+          friendsList.add(doc.data().userId1);
+        });
+
+        console.log(
+          "Found friends in both directions:",
+          Array.from(friendsList)
+        );
+        return Array.from(friendsList);
+      } catch {
+        if (retries > 0) {
+          console.log(`Retrying friends fetch. Attempts left: ${retries - 1}`);
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          return fetchFriendsWithRetry(retries - 1);
+        }
+        return [];
+      }
+    },
+    [userId]
+  );
+
+  // Add real-time friend count listener
+  useEffect(() => {
+    if (!userId) return;
+
+    const unsubscribeFriends1 = onSnapshot(
+      query(collection(db, "Friends"), where("userId1", "==", userId)),
+      (snapshot1) => {
+        const unsubscribeFriends2 = onSnapshot(
+          query(collection(db, "Friends"), where("userId2", "==", userId)),
+          (snapshot2) => {
+            const totalFriends = snapshot1.size + snapshot2.size;
+            setFriendCount(totalFriends);
+          }
+        );
+        return () => unsubscribeFriends2();
+      }
+    );
+
+    return () => unsubscribeFriends1();
+  }, [userId]);
+
+  // Modify fetchAllPosts to use real-time listeners
+  const fetchAllPosts = useCallback(async () => {
+    if (!userId) return;
+
+    try {
+      // Set up real-time listener for user's posts
+      const userPostsQuery = query(
+        collection(db, "posts"),
+        where("userId", "==", userId)
+      );
+
+      const unsubscribeUserPosts = onSnapshot(
+        userPostsQuery,
+        async (userPostsSnapshot) => {
+          const userPosts = userPostsSnapshot.docs.map((doc) =>
+            convertDocToPost(doc, true)
+          );
+
+          // Get friends list and set up listeners for their posts
+          const friendsList = await fetchFriendsWithRetry();
+
+          const friendsPostsPromises = friendsList.map((friendId) => {
+            const friendPostsQuery = query(
+              collection(db, "posts"),
+              where("userId", "==", friendId)
+            );
+
+            return new Promise<Post[]>((resolve) => {
+              onSnapshot(friendPostsQuery, (friendPostsSnapshot) => {
+                const friendPosts = friendPostsSnapshot.docs.map((doc) =>
+                  convertDocToPost(doc, false)
+                );
+                resolve(friendPosts);
+              });
+            });
+          });
+
+          const friendsPostsArrays = await Promise.all(friendsPostsPromises);
+          const friendsPosts = friendsPostsArrays.flat();
+
+          const allPosts = [...userPosts, ...friendsPosts].sort(
+            (a: Post, b: Post) => {
+              const timeA = normalizeTimestamp(a.timestamp);
+              const timeB = normalizeTimestamp(b.timestamp);
+              return timeB - timeA;
+            }
+          );
+
+          setPosts(allPosts);
+          setLoadingPosts(false);
+        }
+      );
+
+      return () => {
+        unsubscribeUserPosts();
+      };
+    } catch (error) {
+      console.error("Error setting up real-time posts:", error);
+      setError("Failed to load posts");
+      setLoadingPosts(false);
+    }
+  }, [userId, fetchFriendsWithRetry, convertDocToPost]);
 
   const handleLogout = async () => {
     try {
       await signOut(auth);
       navigate("/login");
-    } catch {
+    } catch (error) {
       console.error("Error logging out: ", error);
     }
   };
+
+  // Add this function to handle profile updates
+  const handleProfileUpdate = useCallback(() => {
+    setRefreshTrigger((prev) => prev + 1);
+  }, []);
 
   useEffect(() => {
     if (!userId) {
@@ -58,150 +232,8 @@ function Profile() {
 
     console.log("Starting posts fetch for user:", userId);
     setLoadingPosts(true);
-
-    const fetchAllPosts = async () => {
-      try {
-        // 1. Fetch user's own posts first
-        const userPostsQuery = query(
-          collection(db, "posts"),
-          where("userId", "==", userId)
-        );
-
-        const userPostsSnapshot = await getDocs(userPostsQuery);
-        const userPosts = userPostsSnapshot.docs.map((doc) => ({
-          id: doc.id,
-          text: doc.data().text || "",
-          timestamp: doc.data().timestamp,
-          userId: doc.data().userId,
-          image: doc.data().image || null,
-          mediaUrl: doc.data().mediaUrl || "",
-          liked: Boolean(doc.data().liked),
-          likeCount: Number(doc.data().likeCount) || 0,
-          isOwnPost: true,
-          isFriendPost: false,
-        }));
-
-        // 2. Fetch friends list with retry mechanism
-        const fetchFriendsWithRetry = async (
-          retries = 3
-        ): Promise<string[]> => {
-          try {
-            // Query for both userId1 and userId2
-            const friendsQuery1 = query(
-              collection(db, "Friends"),
-              where("userId1", "==", userId)
-            );
-            const friendsQuery2 = query(
-              collection(db, "Friends"),
-              where("userId2", "==", userId)
-            );
-
-            const [snapshot1, snapshot2] = await Promise.all([
-              getDocs(friendsQuery1),
-              getDocs(friendsQuery2),
-            ]);
-
-            const friendsList = new Set<string>();
-
-            // Add friends where user is userId1
-            snapshot1.docs.forEach((doc) => {
-              friendsList.add(doc.data().userId2);
-            });
-
-            // Add friends where user is userId2
-            snapshot2.docs.forEach((doc) => {
-              friendsList.add(doc.data().userId1);
-            });
-
-            console.log(
-              "Found friends in both directions:",
-              Array.from(friendsList)
-            );
-            return Array.from(friendsList);
-          } catch {
-            if (retries > 0) {
-              console.log(
-                `Retrying friends fetch. Attempts left: ${retries - 1}`
-              );
-              await new Promise((resolve) => setTimeout(resolve, 1000));
-              return fetchFriendsWithRetry(retries - 1);
-            }
-            throw error;
-          }
-        };
-
-        const friendsList = await fetchFriendsWithRetry();
-        console.log("Friends list:", friendsList);
-
-        // 3. Fetch friends' posts with retry mechanism
-        const fetchFriendsPosts = async (friendId: string, retries = 3) => {
-          try {
-            const friendPostsQuery = query(
-              collection(db, "posts"),
-              where("userId", "==", friendId)
-            );
-            const friendPostsSnapshot = await getDocs(friendPostsQuery);
-            return friendPostsSnapshot.docs.map((doc) => ({
-              id: doc.id,
-              text: doc.data().text || "",
-              timestamp: doc.data().timestamp,
-              userId: doc.data().userId,
-              image: doc.data().image || null,
-              mediaUrl: doc.data().mediaUrl || "",
-              liked: Boolean(doc.data().liked),
-              likeCount: Number(doc.data().likeCount) || 0,
-              isOwnPost: false,
-              isFriendPost: true,
-            }));
-          } catch {
-            if (retries > 0) {
-              console.log(
-                `Retrying posts fetch for friend ${friendId}. Attempts left: ${
-                  retries - 1
-                }`
-              );
-              await new Promise((resolve) => setTimeout(resolve, 1000));
-              return fetchFriendsPosts(friendId, retries - 1);
-            }
-            return [];
-          }
-        };
-
-        // 4. Fetch each friend's posts separately with delay
-        const friendsPosts = [];
-        for (const friendId of friendsList) {
-          const posts = await fetchFriendsPosts(friendId);
-          friendsPosts.push(...posts);
-          // Add small delay between requests to avoid overwhelming Safari
-          await new Promise((resolve) => setTimeout(resolve, 100));
-        }
-
-        // 5. Combine and sort all posts
-        const allPosts = [...userPosts, ...friendsPosts].sort((a, b) => {
-          const timeA = normalizeTimestamp(a.timestamp);
-          const timeB = normalizeTimestamp(b.timestamp);
-          return timeB - timeA;
-        });
-
-        console.log(
-          "Total posts fetched:",
-          allPosts.length,
-          "User posts:",
-          userPosts.length,
-          "Friend posts:",
-          friendsPosts.length
-        );
-        setPosts(allPosts);
-        setLoadingPosts(false);
-      } catch (error) {
-        console.error("Error fetching posts:", error);
-        setError("Failed to load posts");
-        setLoadingPosts(false);
-      }
-    };
-
     fetchAllPosts();
-  }, [userId]);
+  }, [userId, fetchAllPosts, refreshTrigger]); // Add refreshTrigger to dependencies
 
   const handleDelete = async (postId: string) => {
     try {
@@ -241,7 +273,6 @@ function Profile() {
         return;
       }
 
-      // إضافة المنشور الجديد إلى قاعدة البيانات
       await addDoc(collection(db, "posts"), {
         text,
         image: imageUrl,
@@ -262,12 +293,13 @@ function Profile() {
   };
 
   return (
-    <div className="flex flex-col items-center min-h-screen bg-gray-300 p-6">
+    <div className="flex flex-col items-center min-h-screen bg-gray-300 p-6 relative">
       <button
         onClick={() => navigate("/follow-system")}
         className="bg-gray-500 text-white px-4 py-2 rounded-full hover:bg-green-300 mt-0 flex items-center gap-2"
       >
         <FaUserFriends />
+        <span className="text-sm font-medium">{friendCount}</span>
       </button>
 
       <button
@@ -282,14 +314,15 @@ function Profile() {
           userId={auth.currentUser.uid}
           onClose={() => setShowSettings(false)}
           handleLogout={handleLogout}
+          onProfileUpdate={handleProfileUpdate}
         />
       )}
 
       <button
         onClick={() => setShowForm(!showForm)}
-        className="bg-blue-500 text-white px-4 py-2 rounded-full hover:bg-blue-600 mt-4"
+        className="fixed bottom-8 right-8 w-14 h-14 bg-blue-500 text-white rounded-full shadow-lg hover:bg-blue-600 flex items-center justify-center transition-all transform hover:scale-110 z-50"
       >
-        {showForm ? "إلغاء" : "إنشاء منشور جديد"}
+        <IoMdAdd className="text-2xl" />
       </button>
 
       {showForm && (
@@ -301,7 +334,11 @@ function Profile() {
 
       <div className="w-full max-w-2xl mt-6 space-y-4">
         {loadingPosts ? (
-          <div>Loading...</div>
+          <>
+            <PostSkeleton />
+            <PostSkeleton />
+            <PostSkeleton />
+          </>
         ) : error ? (
           <div className="text-red-500">{error}</div>
         ) : posts.length === 0 ? (
