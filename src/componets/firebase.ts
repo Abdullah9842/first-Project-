@@ -25,14 +25,37 @@ const app = initializeApp(firebaseConfig);
 // تهيئة Firestore مع إعدادات مخصصة لـ Safari
 const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 
-const db = initializeFirestore(app, {
-  experimentalForceLongPolling: isSafari, // تفعيل فقط في Safari
+const firestoreSettings = {
+  experimentalForceLongPolling: isSafari,
   localCache: persistentLocalCache({
     tabManager: persistentSingleTabManager({ forceOwnership: true })
   }),
   host: 'firestore.googleapis.com',
-  ssl: true
-});
+  ssl: true,
+  ignoreUndefinedProperties: true,
+  cacheSizeBytes: 41943040, // 40MB
+  experimentalAutoDetectLongPolling: false,
+  merge: true
+};
+
+const db = initializeFirestore(app, firestoreSettings);
+
+// تعديل إعدادات fetch للتعامل مع CORS
+const originalFetch = window.fetch;
+window.fetch = async (input, init) => {
+  if (input && typeof input === 'string' && input.includes('firestore.googleapis.com')) {
+    init = {
+      ...init,
+      mode: 'cors',
+      credentials: 'include',
+      headers: {
+        ...init?.headers,
+        'Origin': window.location.origin,
+      }
+    };
+  }
+  return originalFetch(input, init);
+};
 
 // تهيئة خدمات Firebase الأخرى
 const auth = getAuth(app);
