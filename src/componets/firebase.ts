@@ -2,12 +2,8 @@ import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, onAuthStateChanged, connectAuthEmulator } from "firebase/auth";
 import { getStorage, connectStorageEmulator } from "firebase/storage";
 import { 
-  initializeFirestore,
-  persistentLocalCache,
-  persistentSingleTabManager,
-  connectFirestoreEmulator,
-  CACHE_SIZE_UNLIMITED,
-  enableIndexedDbPersistence
+  getFirestore,
+  connectFirestoreEmulator
 } from "firebase/firestore";
 
 // تكوين Firebase
@@ -23,41 +19,7 @@ const firebaseConfig = {
 
 // تهيئة Firebase
 const app = initializeApp(firebaseConfig);
-
-// الكشف عن متصفح Safari
-const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-
-// تهيئة Firestore مع إعدادات مخصصة
-const db = initializeFirestore(app, {
-  // إعدادات خاصة لـ Safari
-  experimentalForceLongPolling: isSafari,
-  // إعدادات التخزين المؤقت
-  localCache: persistentLocalCache({
-    tabManager: persistentSingleTabManager({ forceOwnership: true }),
-    cacheSizeBytes: CACHE_SIZE_UNLIMITED
-  }),
-  // تعطيل الكشف التلقائي
-  experimentalAutoDetectLongPolling: false
-});
-
-// تفعيل التخزين المحلي
-if (isSafari) {
-  enableIndexedDbPersistence(db)
-    .then(() => {
-      console.log('📱 Safari IndexedDB persistence enabled');
-    })
-    .catch((err) => {
-      if (err.code === 'failed-precondition') {
-        console.warn('⚠️ Multiple tabs open, persistence can only be enabled in one tab at a time.');
-      } else if (err.code === 'unimplemented') {
-        console.warn('⚠️ The current browser does not support persistence.');
-      } else {
-        console.error('❌ Error enabling persistence:', err);
-      }
-    });
-}
-
-// تهيئة خدمات Firebase الأخرى
+const db = getFirestore(app);
 const auth = getAuth(app);
 const storage = getStorage(app);
 const googleProvider = new GoogleAuthProvider();
@@ -70,7 +32,6 @@ if (window.location.hostname === 'localhost') {
   console.log('🔧 Connected to Firebase Emulators');
 } else {
   console.log('🚀 Connected to Firebase Production Services');
-  console.log(`🌐 Browser: ${isSafari ? 'Safari' : 'Other'}`);
 }
 
 // إضافة مستمع لحالة المصادقة
