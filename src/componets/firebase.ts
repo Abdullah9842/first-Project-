@@ -6,7 +6,6 @@ import {
   persistentLocalCache,
   persistentMultipleTabManager,
   enableIndexedDbPersistence,
-  CACHE_SIZE_UNLIMITED,
   enableMultiTabIndexedDbPersistence,
   type Firestore,
   type FirestoreSettings,
@@ -42,7 +41,6 @@ const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 const firestoreSettings: FirestoreSettings = {
   experimentalForceLongPolling: isSafari,
   experimentalAutoDetectLongPolling: true,
-  cacheSizeBytes: CACHE_SIZE_UNLIMITED,
   localCache: persistentLocalCache({
     tabManager: persistentMultipleTabManager()
   })
