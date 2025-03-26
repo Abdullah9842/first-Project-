@@ -38,17 +38,18 @@ import { Timestamp } from 'firebase/firestore';
 export interface Post {
   id: string;
   text: string;
-  timestamp: string | Timestamp | Date;  // تأكد من توحيد النوع
+  timestamp: Timestamp | Date | string;
   userId: string;
   image: string | null;
-  mediaUrl?: string;
+  mediaUrl: string;
   liked: boolean;
   likeCount: number;
+  likedBy?: string[];
   isOwnPost: boolean;
   isFriendPost: boolean;
 }
 
-// helper function للتعامل مع التواريخ
+// دالة مساعدة للتعامل مع التواريخ
 export const normalizeTimestamp = (timestamp: string | Timestamp | Date | number): string | Timestamp | Date => {
   if (timestamp instanceof Timestamp) {
     return timestamp;
@@ -63,4 +64,9 @@ export const normalizeTimestamp = (timestamp: string | Timestamp | Date | number
     return new Date(timestamp);
   }
   return new Date();
+};
+
+// إذا كنت بحاجة لاستخدام "number" في المستقبل، يمكن تحويله
+export const convertTimestampNumber = (timestamp: number): Date => {
+  return new Date(timestamp);
 };

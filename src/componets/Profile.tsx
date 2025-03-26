@@ -14,6 +14,10 @@ import {
   DocumentData,
   QueryDocumentSnapshot,
   onSnapshot,
+  getDoc,
+  serverTimestamp,
+  orderBy,
+  limit,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { signOut } from "firebase/auth";
@@ -66,18 +70,36 @@ function Profile() {
 
   // Helper function to convert Firestore doc to Post type
   const convertDocToPost = useCallback(
-    (doc: QueryDocumentSnapshot<DocumentData>, isOwnPost: boolean): Post => ({
-      id: doc.id,
-      text: doc.data().text || "",
-      timestamp: doc.data().timestamp,
-      userId: doc.data().userId,
-      image: doc.data().image || null,
-      mediaUrl: doc.data().mediaUrl || "",
-      liked: Boolean(doc.data().liked),
-      likeCount: Number(doc.data().likeCount) || 0,
-      isOwnPost,
-      isFriendPost: !isOwnPost,
-    }),
+    (doc: QueryDocumentSnapshot<DocumentData>, isOwnPost: boolean): Post => {
+      const data = doc.data();
+      const currentUserId = auth.currentUser?.uid;
+
+      // التأكد من أن likedBy موجودة قبل استخدامها
+      let likedBy: string[] = [];
+      if (Array.isArray(data.likedBy)) {
+        likedBy = data.likedBy;
+      }
+
+      // تحويل timestamp إلى النوع المناسب إذا كان رقم
+      let timestamp = data.timestamp;
+      if (typeof timestamp === "number") {
+        timestamp = new Date(timestamp);
+      }
+
+      return {
+        id: doc.id,
+        text: data.text || "",
+        timestamp: timestamp, // استخدام القيمة المحولة
+        userId: data.userId,
+        image: data.image || null,
+        mediaUrl: data.mediaUrl || "",
+        liked: currentUserId ? likedBy.includes(currentUserId) : false,
+        likeCount: likedBy.length,
+        likedBy: likedBy,
+        isOwnPost,
+        isFriendPost: !isOwnPost,
+      };
+    },
     []
   );
 
@@ -125,175 +147,157 @@ function Profile() {
     [userId]
   );
 
-  // Add real-time friend count listener
+  // تحسين دالة جلب الأصدقاء
   useEffect(() => {
     if (!userId) return;
 
-    const unsubscribeFriends1 = onSnapshot(
-      query(collection(db, "Friends"), where("userId1", "==", userId)),
-      (snapshot1) => {
-        const unsubscribeFriends2 = onSnapshot(
-          query(collection(db, "Friends"), where("userId2", "==", userId)),
-          (snapshot2) => {
-            const totalFriends = snapshot1.size + snapshot2.size;
-            setFriendCount(totalFriends);
-          }
-        );
-        return () => unsubscribeFriends2();
-      }
+    // استخدام حل أكثر كفاءة مع batch
+    const friendsQuery = query(
+      collection(db, "Friends"),
+      where("userId1", "in", [userId, auth.currentUser?.uid]),
+      limit(100)
     );
 
-    return () => unsubscribeFriends1();
+    const unsubscribeFriends = onSnapshot(friendsQuery, (snapshot) => {
+      // تخزين الأصدقاء في مجموعة لتجنب التكرار
+      const friendSet = new Set<string>();
+
+      snapshot.docs.forEach((doc) => {
+        const data = doc.data();
+        if (data.userId1 === userId) {
+          friendSet.add(data.userId2);
+        } else if (data.userId2 === userId) {
+          friendSet.add(data.userId1);
+        }
+      });
+
+      setFriendCount(friendSet.size);
+    });
+
+    return () => unsubscribeFriends();
   }, [userId]);
 
-  // Modify fetchAllPosts to return unsubscribe functions
+  // تحسين دالة fetchAllPosts
   const fetchAllPosts = useCallback(() => {
     if (!userId) return () => {};
 
-    let friendsUnsubscribes: (() => void)[] = [];
-    let userPosts: Post[] = [];
-    let friendsPosts: Post[] = [];
+    let unsubscribeCallbacks: (() => void)[] = [];
 
     try {
-      // Set up real-time listener for user's posts
+      // 1. جلب منشورات المستخدم
       const userPostsQuery = query(
         collection(db, "posts"),
-        where("userId", "==", userId)
+        where("userId", "==", userId),
+        orderBy("timestamp", "desc"),
+        limit(20)
       );
 
-      // First, set up the friends listeners
-      const setupFriendsListeners = async () => {
-        const friendsQuery1 = query(
-          collection(db, "Friends"),
-          where("userId1", "==", userId)
-        );
-        const friendsQuery2 = query(
-          collection(db, "Friends"),
-          where("userId2", "==", userId)
-        );
-
-        const [snapshot1, snapshot2] = await Promise.all([
-          getDocs(friendsQuery1),
-          getDocs(friendsQuery2),
-        ]);
-
-        const friendsWithDates = new Map<string, Date>();
-
-        snapshot1.docs.forEach((doc) => {
-          const data = doc.data();
-          const friendshipDate =
-            data.friendshipDate instanceof Timestamp
-              ? data.friendshipDate.toDate()
-              : new Date(data.friendshipDate || Date.now());
-          friendsWithDates.set(data.userId2, friendshipDate);
-        });
-
-        snapshot2.docs.forEach((doc) => {
-          const data = doc.data();
-          const friendshipDate =
-            data.friendshipDate instanceof Timestamp
-              ? data.friendshipDate.toDate()
-              : new Date(data.friendshipDate || Date.now());
-          friendsWithDates.set(data.userId1, friendshipDate);
-        });
-
-        // Cleanup previous friend listeners
-        friendsUnsubscribes.forEach((unsubscribe) => unsubscribe());
-        friendsUnsubscribes = [];
-
-        // Set up listeners for each friend's posts
-        friendsUnsubscribes = Array.from(friendsWithDates.entries()).map(
-          ([friendId, friendshipDate]) => {
-            const friendPostsQuery = query(
-              collection(db, "posts"),
-              where("userId", "==", friendId)
-            );
-
-            return onSnapshot(friendPostsQuery, (friendPostsSnapshot) => {
-              const newFriendPosts = friendPostsSnapshot.docs
-                .map((doc) => convertDocToPost(doc, false))
-                .filter((post) => {
-                  const postDate =
-                    post.timestamp instanceof Timestamp
-                      ? post.timestamp.toDate()
-                      : new Date(post.timestamp);
-                  return postDate >= friendshipDate;
-                });
-
-              friendsPosts = newFriendPosts;
-
-              // Combine and sort all posts
-              const allPosts = [...userPosts, ...friendsPosts].sort((a, b) => {
-                const timeA = normalizeTimestamp(a.timestamp);
-                const timeB = normalizeTimestamp(b.timestamp);
-                return timeB - timeA;
-              });
-
-              setPosts(allPosts);
-              setLoadingPosts(false);
-            });
-          }
-        );
-
-        if (friendsWithDates.size === 0) {
-          setPosts(userPosts);
-          setLoadingPosts(false);
-        }
-      };
-
-      // Set up user posts listener
       const unsubscribeUserPosts = onSnapshot(
         userPostsQuery,
-        async (userPostsSnapshot) => {
-          userPosts = userPostsSnapshot.docs.map((doc) =>
+        (snapshot) => {
+          console.log(`Fetched ${snapshot.docs.length} posts for current user`);
+
+          const userPosts = snapshot.docs.map((doc) =>
             convertDocToPost(doc, true)
           );
 
-          // Combine and sort all posts
-          const allPosts = [...userPosts, ...friendsPosts].sort((a, b) => {
-            const timeA = normalizeTimestamp(a.timestamp);
-            const timeB = normalizeTimestamp(b.timestamp);
-            return timeB - timeA;
+          // استخدام معرف للمنشورات الحالية للتحقق من التكرار
+          const currentPostIds = new Set(userPosts.map((post) => post.id));
+
+          setPosts((prevPosts) => {
+            // الاحتفاظ فقط بمنشورات الأصدقاء من الحالة السابقة
+            const friendPosts = prevPosts.filter(
+              (post) => !currentPostIds.has(post.id) && post.userId !== userId
+            );
+
+            return [...userPosts, ...friendPosts].sort((a, b) => {
+              const timeA = normalizeTimestamp(a.timestamp);
+              const timeB = normalizeTimestamp(b.timestamp);
+              return timeB - timeA;
+            });
           });
 
-          setPosts(allPosts);
+          setLoadingPosts(false);
+        },
+        (error) => {
+          console.error("Error fetching user posts:", error);
+          setLoadingPosts(false);
         }
       );
 
-      // Initial setup of friends listeners
-      setupFriendsListeners();
+      unsubscribeCallbacks.push(unsubscribeUserPosts);
 
-      // Set up a listener for friends list changes
-      const unsubscribeFriendsChanges = onSnapshot(
-        query(collection(db, "Friends"), where("userId1", "==", userId)),
-        () => {
-          setupFriendsListeners();
+      // 2. جلب منشورات الأصدقاء
+      fetchFriendsWithRetry().then((friendIds) => {
+        console.log("Got friend IDs:", friendIds);
+
+        // إذا لم يكن هناك أصدقاء
+        if (friendIds.length === 0) {
+          return;
         }
-      );
 
-      const unsubscribeFriendsChanges2 = onSnapshot(
-        query(collection(db, "Friends"), where("userId2", "==", userId)),
-        () => {
-          setupFriendsListeners();
+        // جلب منشورات الأصدقاء (حد أقصى 10 أصدقاء في كل مرة للأداء)
+        const friendBatches = [];
+        for (let i = 0; i < friendIds.length; i += 10) {
+          friendBatches.push(friendIds.slice(i, i + 10));
         }
-      );
 
-      // Return cleanup function that unsubscribes all listeners
+        friendBatches.forEach((batch) => {
+          // استخدام استعلام مركب للحصول على منشورات كل الأصدقاء في دفعة واحدة
+          const friendsPostsQuery = query(
+            collection(db, "posts"),
+            where("userId", "in", batch),
+            orderBy("timestamp", "desc"),
+            limit(50)
+          );
+
+          const unsubscribeFriendsPosts = onSnapshot(
+            friendsPostsQuery,
+            (snapshot) => {
+              console.log(
+                `Fetched ${snapshot.docs.length} posts for ${batch.length} friends`
+              );
+
+              const newFriendPosts = snapshot.docs.map((doc) =>
+                convertDocToPost(doc, false)
+              );
+              const friendPostIds = new Set(
+                newFriendPosts.map((post) => post.id)
+              );
+
+              setPosts((prevPosts) => {
+                // حذف المنشورات القديمة التي تم استبدالها
+                const otherPosts = prevPosts.filter(
+                  (post) =>
+                    !friendPostIds.has(post.id) && !batch.includes(post.userId)
+                );
+
+                return [...otherPosts, ...newFriendPosts].sort((a, b) => {
+                  const timeA = normalizeTimestamp(a.timestamp);
+                  const timeB = normalizeTimestamp(b.timestamp);
+                  return timeB - timeA;
+                });
+              });
+            },
+            (error) => {
+              console.error("Error fetching friends posts:", error);
+            }
+          );
+
+          unsubscribeCallbacks.push(unsubscribeFriendsPosts);
+        });
+      });
+
       return () => {
-        unsubscribeUserPosts();
-        unsubscribeFriendsChanges();
-        unsubscribeFriendsChanges2();
-        friendsUnsubscribes.forEach((unsubscribe) => unsubscribe());
+        unsubscribeCallbacks.forEach((unsubscribe) => unsubscribe());
       };
     } catch (error) {
-      console.error("Error setting up real-time posts:", error);
-      setError("Failed to load posts");
+      console.error("Error setting up post listeners:", error);
       setLoadingPosts(false);
-      return () => {
-        friendsUnsubscribes.forEach((unsubscribe) => unsubscribe());
-      };
+      setError("حدث خطأ في تحميل المنشورات");
+      return () => {};
     }
-  }, [userId, convertDocToPost]);
+  }, [userId, convertDocToPost, fetchFriendsWithRetry]);
 
   useEffect(() => {
     if (!userId) {
@@ -302,7 +306,15 @@ function Profile() {
       return;
     }
 
-    console.log("Starting posts fetch for user:", userId);
+    if (!auth.currentUser) {
+      setLoadingPosts(false);
+      setError("User not authenticated");
+      return;
+    }
+
+    console.log("Current user:", auth.currentUser.uid);
+    console.log("Fetching posts for user:", userId);
+
     setLoadingPosts(true);
     const unsubscribe = fetchAllPosts();
 
@@ -336,19 +348,102 @@ function Profile() {
     }
   };
 
+  // دالة مساعدة للتأكد من حالة اللايك
+  const checkLikeStatus = async (postId: string) => {
+    if (!auth.currentUser) return false;
+
+    try {
+      const postDoc = await getDoc(doc(db, "posts", postId));
+      if (!postDoc.exists()) return false;
+
+      const data = postDoc.data();
+      const likedBy = data.likedBy || [];
+
+      console.log("حالة اللايك:", {
+        postId,
+        likedBy,
+        isLiked: likedBy.includes(auth.currentUser.uid),
+        likeCount: likedBy.length,
+        currentUser: auth.currentUser.uid,
+      });
+
+      return likedBy.includes(auth.currentUser.uid);
+    } catch (error) {
+      console.error("خطأ في التحقق من حالة اللايك:", error);
+      return false;
+    }
+  };
+
+  // استدعاء الدالة بعد عملية اللايك
   const handleLike = async (postId: string) => {
+    if (!auth.currentUser) {
+      console.error("يجب تسجيل الدخول");
+      return;
+    }
+
     try {
       const postRef = doc(db, "posts", postId);
-      const post = posts.find((p) => p.id === postId);
-      if (post) {
-        const newLikedState = !post.liked;
-        await updateDoc(postRef, {
-          liked: newLikedState,
-          likeCount: newLikedState ? post.likeCount + 1 : post.likeCount - 1,
-        });
+      const postSnap = await getDoc(postRef);
+
+      if (!postSnap.exists()) {
+        console.error("المنشور غير موجود");
+        return;
       }
+
+      const postData = postSnap.data();
+      const currentUserId = auth.currentUser.uid;
+
+      // تأكد من أن likedBy موجود دائماً كمصفوفة
+      let likedBy: string[] = Array.isArray(postData.likedBy)
+        ? [...postData.likedBy]
+        : [];
+
+      // تحقق من حالة الإعجاب
+      const isLiked = likedBy.includes(currentUserId);
+
+      // تحديث UI أولاً للاستجابة السريعة
+      setPosts((prev) =>
+        prev.map((post) => {
+          if (post.id === postId) {
+            const updatedLikedBy = isLiked
+              ? (post.likedBy || []).filter((id) => id !== currentUserId)
+              : [...(post.likedBy || []), currentUserId];
+
+            return {
+              ...post,
+              liked: !isLiked,
+              likedBy: updatedLikedBy,
+              likeCount: updatedLikedBy.length,
+            };
+          }
+          return post;
+        })
+      );
+
+      // تحديث Firestore بطريقة مباشرة بدون استخدام arrayUnion/arrayRemove
+      const updatedLikedBy = isLiked
+        ? likedBy.filter((id) => id !== currentUserId)
+        : [...likedBy, currentUserId];
+
+      // استخدام كائن بسيط محدد جيداً
+      await updateDoc(postRef, {
+        likedBy: updatedLikedBy,
+        likeCount: updatedLikedBy.length,
+      });
     } catch (error) {
-      console.error("Error updating like: ", error);
+      console.error("خطأ في تحديث الإعجاب:", error);
+
+      // في حالة الفشل، استعادة الحالة الأصلية
+      checkLikeStatus(postId).then((actualLikeStatus) => {
+        setPosts((prev) =>
+          prev.map((post) => {
+            if (post.id === postId) {
+              return { ...post, liked: actualLikeStatus };
+            }
+            return post;
+          })
+        );
+      });
     }
   };
 
@@ -356,33 +451,99 @@ function Profile() {
     text: string,
     imageUrl: string | null,
     spotifyUrl: string,
-    audioUrl: string | null,
-    timestamp: number
+    // استخدام underscore للإشارة إلى أن هذه المتغيرات غير مستخدمة
+    _audioUrl: string | null,
+    _timestamp: number
   ) => {
     try {
       if (!auth.currentUser?.uid) {
-        console.error("No user logged in");
+        console.error("لم يتم تسجيل الدخول");
         return;
       }
 
-      await addDoc(collection(db, "posts"), {
-        text,
+      // 1. إعداد بيانات المنشور بشكل صحيح
+      const postData = {
+        text: text || "",
         image: imageUrl,
-        mediaUrl: spotifyUrl,
-        audioUrl,
-        timestamp: Timestamp.fromMillis(timestamp),
+        mediaUrl: spotifyUrl || "",
+        timestamp: serverTimestamp(),
         userId: auth.currentUser.uid,
-        liked: false,
+        likedBy: [],
         likeCount: 0,
-        createdAt: Timestamp.now(),
-      });
+        createdAt: serverTimestamp(),
+      };
 
-      console.log("Post added successfully!");
+      console.log("جاري إضافة منشور جديد:", postData);
+
+      // 2. إضافة المنشور إلى Firestore
+      const docRef = await addDoc(collection(db, "posts"), postData);
+      console.log("تم إضافة المنشور بنجاح!", docRef.id);
+
+      // 4. إغلاق نافذة الإضافة
       setShowForm(false);
     } catch (error) {
-      console.error("Error submitting post:", error);
+      console.error("خطأ في إضافة المنشور:", error);
+      setError("حدث خطأ في إضافة المنشور");
     }
   };
+
+  // دالة لمزامنة حالة المنشورات من قاعدة البيانات
+  const syncPostsWithFirestore = useCallback(async () => {
+    if (!userId || !auth.currentUser) return;
+
+    try {
+      console.log("جاري مزامنة المنشورات مع قاعدة البيانات...");
+
+      // 1. جلب المنشورات الحالية من الحالة المحلية
+      const currentPosts = [...posts];
+      const postIds = currentPosts.map((post) => post.id);
+
+      // 2. جلب البيانات المحدثة من فايرستور
+      const postsSnapshot = await Promise.all(
+        postIds.map((id) => getDoc(doc(db, "posts", id)))
+      );
+
+      // 3. تحديث المنشورات المحلية بالبيانات من قاعدة البيانات
+      const updatedPosts = currentPosts.map((post, index) => {
+        const docSnapshot = postsSnapshot[index];
+        if (docSnapshot.exists()) {
+          const data = docSnapshot.data();
+          const likedBy = data.likedBy || [];
+          const isLiked = likedBy.includes(auth.currentUser?.uid);
+
+          // تحديث فقط إذا اختلفت البيانات
+          if (post.liked !== isLiked || post.likeCount !== likedBy.length) {
+            console.log(
+              `تحديث المنشور ${post.id}: isLiked من ${post.liked} إلى ${isLiked}, likeCount من ${post.likeCount} إلى ${likedBy.length}`
+            );
+            return {
+              ...post,
+              liked: isLiked,
+              likeCount: likedBy.length,
+              likedBy,
+            };
+          }
+        }
+        return post;
+      });
+
+      // 4. تحديث الحالة بالمنشورات المحدثة
+      setPosts(updatedPosts);
+      console.log("تمت مزامنة المنشورات بنجاح!");
+    } catch (error) {
+      console.error("خطأ في مزامنة المنشورات:", error);
+    }
+  }, [posts, userId]);
+
+  // استدعاء دالة المزامنة عند الضرورة
+  useEffect(() => {
+    // مزامنة المنشورات كل 30 ثانية
+    const interval = setInterval(() => {
+      syncPostsWithFirestore();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [syncPostsWithFirestore]);
 
   return (
     <div className="flex flex-col items-center min-h-screen bg-gray-300 p-6 relative">
@@ -432,7 +593,7 @@ function Profile() {
             <PostSkeleton />
           </>
         ) : error ? (
-          <div className="text-red-500">{error}</div>
+          <div className="text-red-500 text-center">{error}</div>
         ) : posts.length === 0 ? (
           <div className="text-center text-gray-500">لا توجد منشورات</div>
         ) : (

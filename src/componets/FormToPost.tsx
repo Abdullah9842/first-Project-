@@ -6,7 +6,6 @@ import { RiCloseLargeFill } from "react-icons/ri";
 import { BiSolidImageAdd } from "react-icons/bi";
 import { BsSendFill } from "react-icons/bs";
 import { FaSpotify } from "react-icons/fa";
-import { FaMicrophone } from "react-icons/fa";
 import MediaHandling from "./MediaHandling";
 import { useTranslation } from "react-i18next";
 
@@ -27,16 +26,12 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [spotifyUrl, setSpotifyUrl] = useState("");
-  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [isRecording, setIsRecording] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isSpotifyOpen, setIsSpotifyOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const currentUser = auth.currentUser;
 
   useEffect(() => {
@@ -81,63 +76,11 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
     setImageUrl(null);
   };
 
-  const handleAudioRemove = () => {
-    setAudioBlob(null);
-    setAudioUrl(null);
-  };
-
   const handleSpotifyToggle = () => {
     setIsSpotifyOpen((prev) => !prev);
     if (isSpotifyOpen) {
       setSpotifyUrl("");
     }
-  };
-
-  const handleStartRecording = async () => {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setError(t("post.recordingError"));
-      return;
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          sampleRate: 44100,
-        },
-      });
-
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: "audio/webm;codecs=opus",
-      });
-
-      mediaRecorderRef.current = mediaRecorder;
-      const audioChunks: BlobPart[] = [];
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunks.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
-        setAudioBlob(audioBlob);
-        setAudioUrl(URL.createObjectURL(audioBlob));
-      };
-
-      mediaRecorder.start(1000); // تسجيل كل ثانية
-      setIsRecording(true);
-    } catch (error) {
-      console.error("Recording error:", error);
-      setError(t("post.recordingError"));
-    }
-  };
-
-  const handleStopRecording = () => {
-    mediaRecorderRef.current?.stop();
-    setIsRecording(false);
   };
 
   const validateSpotifyUrl = (url: string): boolean => {
@@ -167,7 +110,7 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
     e.preventDefault();
     if (!currentUser?.uid) return;
 
-    if (!text && !imageFile && !spotifyUrl && !audioBlob) {
+    if (!text && !imageFile && !spotifyUrl) {
       setError(t("post.required"));
       return;
     }
@@ -177,19 +120,14 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
 
     try {
       let finalImageUrl = null;
-      let finalAudioUrl = null;
 
       if (imageFile) {
         const compressedImage = await compressImage(imageFile);
         finalImageUrl = await uploadFile(compressedImage, "images");
       }
 
-      if (audioBlob) {
-        finalAudioUrl = await uploadFile(audioBlob, "audio");
-      }
-
       const timestamp = Timestamp.now().toMillis();
-      await onSubmit(text, finalImageUrl, spotifyUrl, finalAudioUrl, timestamp);
+      await onSubmit(text, finalImageUrl, spotifyUrl, null, timestamp);
 
       resetForm();
       onClose();
@@ -299,15 +237,12 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
     setImageFile(null);
     setImageUrl(null);
     setSpotifyUrl("");
-    setAudioBlob(null);
-    setAudioUrl(null);
     setError(null);
     setProgress(0);
   };
 
   const isSubmitDisabled =
-    isLoading ||
-    (!text.trim() && !imageFile && !spotifyUrl.trim() && !audioBlob);
+    isLoading || (!text.trim() && !imageFile && !spotifyUrl.trim());
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
@@ -346,19 +281,6 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
             <button
               className="absolute top-2 right-2 bg-white text-gray-500 rounded-full p-2 hover:bg-gray-200 shadow-md hover:scale-110 transition-all"
               onClick={handleImageRemove}
-              aria-label={t("action.remove")}
-            >
-              <RiCloseLargeFill className="w-5 h-5" />
-            </button>
-          </div>
-        )}
-
-        {audioUrl && (
-          <div className="relative w-full mb-4 rounded-lg overflow-hidden shadow-lg hover:scale-105 transition-all">
-            <audio controls src={audioUrl} className="w-full" />
-            <button
-              className="absolute top-2 right-2 bg-white text-gray-500 rounded-full p-2 hover:bg-gray-200 shadow-md hover:scale-110 transition-all"
-              onClick={handleAudioRemove}
               aria-label={t("action.remove")}
             >
               <RiCloseLargeFill className="w-5 h-5" />
@@ -437,19 +359,6 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
               />
             </label>
           )}
-
-          <button
-            type="button"
-            className={`text-3xl ${
-              isRecording ? "text-red-500" : "text-gray-600"
-            } hover:text-blue-500 transform hover:scale-105 transition-all`}
-            onClick={isRecording ? handleStopRecording : handleStartRecording}
-            aria-label={
-              isRecording ? t("post.stopRecording") : t("post.startRecording")
-            }
-          >
-            <FaMicrophone />
-          </button>
 
           <button
             className={`p-3 ${

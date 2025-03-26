@@ -182,31 +182,17 @@ const googleProvider = new GoogleAuthProvider();
 
 // ✅ Firestore Settings (Fixed for Safari)
 const firestoreSettings: FirestoreSettings = {
-  experimentalForceLongPolling: true, // Fix for Safari
-  ignoreUndefinedProperties: true
+  experimentalForceLongPolling: false,
+  ignoreUndefinedProperties: true,
+  cacheSizeBytes: 40000000 // 40MB
 };
 
 // ✅ Initialize Firestore with settings
 const db = initializeFirestore(app, firestoreSettings);
 
-// ✅ Detect Safari Private Mode (to avoid IndexedDB errors)
-const isSafariPrivate = (): Promise<boolean> => {
-  return new Promise((resolve) => {
-    const db = indexedDB.open("test");
-    db.onerror = () => resolve(true);
-    db.onsuccess = () => resolve(false);
-  });
-};
-
-// ✅ Enable Offline Persistence (except in Safari Private Mode)
-isSafariPrivate().then((isPrivate) => {
-  if (!isPrivate) {
-    enableMultiTabIndexedDbPersistence(db).catch((err) => {
-      console.error("Error enabling offline persistence:", err);
-    });
-  } else {
-    console.warn("IndexedDB is blocked in Safari Private Mode. Persistence disabled.");
-  }
+// ✅ Enable Offline Persistence بشكل منفصل 
+enableMultiTabIndexedDbPersistence(db).catch((err) => {
+  console.error("Error enabling offline persistence:", err);
 });
 
 // ✅ Export Firebase Instances
@@ -297,6 +283,14 @@ export const checkConnection = (): Promise<boolean> => {
     );
   });
 };
+
+// تحسين خدمة الصور
+// const storageSettings = {
+//   maxOperationRetryTime: 10000, // 10 ثواني
+//   maxDownloadRetryTime: 10000,
+//   maxUploadRetryTime: 15000
+// };
+// const storage = getStorage(app, undefined, storageSettings);
 
 // import { initializeApp } from 'firebase/app';
 // import { 

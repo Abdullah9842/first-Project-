@@ -9,6 +9,10 @@ import {
   updateDoc,
   collection,
   addDoc,
+  arrayRemove,
+  arrayUnion,
+  increment,
+  serverTimestamp,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import MediaHandling from "./MediaHandling";
@@ -16,7 +20,6 @@ import "../index.css";
 import defaultAvatar from "../assets/pngtree-cat-default-avatar-image_2246581.jpg";
 import { useTranslation } from "react-i18next";
 import { auth } from "./firebase";
-import { securityUtils } from "../utils/security";
 
 interface Users {
   id: string;
@@ -26,7 +29,6 @@ interface Users {
 
 interface Post {
   id: string;
-  // content: string;
   text?: string;
   timestamp: Timestamp | Date | string;
   userId: string;
@@ -34,6 +36,7 @@ interface Post {
   liked: boolean;
   likeCount: number;
   mediaUrl?: string;
+  likedBy?: string[];
 }
 
 interface PostCardProps {
@@ -75,7 +78,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete, onLike }) => {
 
   const handleDelete = async (id: string): Promise<void> => {
     try {
-      const postDocRef = doc(db, "Posts", id);
+      const postDocRef = doc(db, "posts", id);
       await deleteDoc(postDocRef);
       onDelete(id);
     } catch (error: unknown) {
@@ -122,56 +125,63 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete, onLike }) => {
 
   const handleLike = async (postId: string) => {
     try {
-      if (!currentUser) return;
-      
-      // التحقق من صحة التوكن قبل الإجراء
-      const isValid = await securityUtils.validateToken();
-      if (!isValid) {
-        throw new Error('Invalid session');
+      if (!currentUser) {
+        console.log("لم يتم تسجيل الدخول");
+        return;
       }
 
       const postRef = doc(db, "posts", postId);
-      
-      // التحقق من وجود المنشور
       const postDoc = await getDoc(postRef);
+
       if (!postDoc.exists()) {
-        throw new Error('Post not found');
+        console.error("المنشور غير موجود");
+        return;
       }
 
-      const newLikedState = !post.liked;
-      await updateDoc(postRef, {
-        liked: newLikedState,
-        likeCount: newLikedState ? post.likeCount + 1 : post.likeCount - 1,
-        lastModified: Timestamp.now(), // تتبع آخر تعديل
-        modifiedBy: currentUser.uid
-      });
+      const postData = postDoc.data();
+      const currentLikes = postData.likedBy || [];
+      const isLiked = currentLikes.includes(currentUser.uid);
 
-      // إضافة سجل للنشاط
-      await addDoc(collection(db, "activityLogs"), {
-        type: "like",
-        postId: post.id,
-        userId: currentUser.uid,
-        timestamp: Timestamp.now()
-      });
-
-      if (newLikedState && post.userId !== currentUser.uid) {
-        const notificationRef = collection(db, "notifications");
-        await addDoc(notificationRef, {
-          type: "like",
-          postId: post.id,
-          postText: post.text || "",
-          fromUserId: currentUser.uid,
-          fromUserName: currentUser.displayName || "مستخدم",
-          fromUserPhoto: currentUser.photoURL,
-          toUserId: post.userId,
-          timestamp: Timestamp.now(),
-          read: false,
-        });
-      }
-
+      // تحديث حالة الإعجاب محلياً أولاً
       onLike(postId);
+
+      try {
+        // تحديث Firestore
+        await updateDoc(postRef, {
+          likedBy: isLiked
+            ? arrayRemove(currentUser.uid)
+            : arrayUnion(currentUser.uid),
+          likeCount: increment(isLiked ? -1 : 1),
+        });
+
+        // إضافة إشعار فقط عند الإعجاب (وليس عند إلغاء الإعجاب)
+        if (!isLiked && postData.userId !== currentUser.uid) {
+          const notificationRef = collection(db, "Notifications");
+          await addDoc(notificationRef, {
+            type: "like",
+            postId,
+            postText: postData.text || "",
+            fromUserId: currentUser.uid,
+            fromUserName: currentUser.displayName || "مستخدم",
+            fromUserPhoto: currentUser.photoURL,
+            toUserId: postData.userId,
+            timestamp: serverTimestamp(),
+            read: false,
+            createdAt: serverTimestamp(),
+          });
+
+          const userRef = doc(db, "Users", postData.userId);
+          await updateDoc(userRef, {
+            unreadNotifications: increment(1),
+          });
+        }
+      } catch (error) {
+        // إذا فشلت العملية، نعيد الحالة المحلية
+        onLike(postId);
+        console.error("خطأ في تحديث الإعجاب:", error);
+      }
     } catch (error) {
-      console.error("Error updating like:", error);
+      console.error("خطأ في معالجة الإعجاب:", error);
     }
   };
 

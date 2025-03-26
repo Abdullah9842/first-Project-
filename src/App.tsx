@@ -17,8 +17,6 @@ import { doc, getDoc } from "firebase/firestore";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { useTranslation } from "react-i18next";
 import "./i18n";
-import { FaBell } from "react-icons/fa";
-import Notifications from "./componets/Notifications";
 
 const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
@@ -28,7 +26,6 @@ const App: React.FC = () => {
   const [language, setLanguage] = useState(() => {
     return localStorage.getItem("language") || "ar";
   });
-  const [showNotifications, setShowNotifications] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -149,19 +146,8 @@ const App: React.FC = () => {
               >
                 {language === "en" ? "العربية" : "English"}
               </button>
-            ) : (
-              <button
-                onClick={() => setShowNotifications(true)}
-                className="bg-gray-200 p-2 rounded-full hover:bg-gray-300 transition-colors"
-              >
-                <FaBell className="text-xl" />
-              </button>
-            )}
+            ) : null}
           </div>
-
-          {isLoggedIn && showNotifications && (
-            <Notifications onClose={() => setShowNotifications(false)} />
-          )}
 
           <Routes>
             <Route
