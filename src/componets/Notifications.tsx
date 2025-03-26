@@ -6,7 +6,6 @@ import {
   onSnapshot,
   orderBy,
   Timestamp,
-  getDocs,
 } from "firebase/firestore";
 import { db, auth } from "./firebase";
 import { useTranslation } from "react-i18next";

@@ -297,3 +297,99 @@ export const checkConnection = (): Promise<boolean> => {
     );
   });
 };
+
+// import { initializeApp } from 'firebase/app';
+// import { 
+//   getAuth, 
+//   GoogleAuthProvider,
+//   signInWithPopup,
+//   signOut
+// } from 'firebase/auth';
+// import { 
+//   getFirestore,
+//   collection,
+//   query,
+//   where,
+//   doc,
+//   onSnapshot,
+//   getDocs,
+//   deleteDoc,
+//   getDoc,
+//   updateDoc,
+//   addDoc,
+//   Timestamp,
+//   type DocumentData,
+//   type QueryDocumentSnapshot,
+//   CollectionReference
+// } from 'firebase/firestore';
+// import { getStorage } from 'firebase/storage';
+
+// // استخدام متغيرات البيئة بدلاً من المفاتيح المباشرة
+// const firebaseConfig = {
+//   apiKey: "AIzaSyCGx4Zjd2X9LoMGvNf42x9YKAyZ1xjSrGo",
+//   authDomain: "jadeksa-69140.firebaseapp.com",
+//   projectId: "jadeksa-69140",
+//   storageBucket: "jadeksa-69140.firebasestorage.app",
+//   messagingSenderId: "597164029013",
+//   appId: "1:597164029013:web:72272a88da2a33aa5190dc",
+//   measurementId: "G-6PJL6V2KJG"
+// };
+
+// // تهيئة Firebase
+// const app = initializeApp(firebaseConfig);
+
+// // تهيئة الخدمات
+// const auth = getAuth(app);
+// const db = getFirestore(app);
+// const storage = getStorage(app);
+// const googleProvider = new GoogleAuthProvider();
+
+// // الدوال المساعدة
+// const getCollection = (path: string): CollectionReference<DocumentData> => {
+//   return collection(db, path);
+// };
+
+// const checkConnection = (): Promise<boolean> => {
+//   return new Promise((resolve) => {
+//     const unsubscribe = onSnapshot(
+//       doc(db, '_health', 'status'),
+//       () => {
+//         unsubscribe();
+//         resolve(true);
+//       },
+//       () => {
+//         unsubscribe();
+//         resolve(false);
+//       }
+//     );
+//   });
+// };
+
+// export {
+//   auth,
+//   db,
+//   storage,
+//   googleProvider,
+//   getCollection,
+//   checkConnection,
+//   signInWithPopup,
+//   signOut,
+//   collection,
+//   query,
+//   where,
+//   doc,
+//   onSnapshot,
+//   getDocs,
+//   deleteDoc,
+//   getDoc,
+//   updateDoc,
+//   addDoc,
+//   Timestamp
+// };
+
+// // تصدير الأنواع
+// export type {
+//   DocumentData,
+//   QueryDocumentSnapshot
+// }; 
+
