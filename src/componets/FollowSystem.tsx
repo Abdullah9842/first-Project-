@@ -15,6 +15,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { IoIosArrowBack } from "react-icons/io";
 import FriendSkeleton from "./FriendSkeleton";
 import { auth, db } from "./firebase";
+import { useTranslation } from "react-i18next";
 
 interface Users {
   userId: string;
@@ -42,6 +43,7 @@ interface Friends {
 }
 
 const FriendSystem: React.FC = () => {
+  const { t } = useTranslation();
   const [requests, setRequests] = useState<FriendRequest[]>([]);
   const [friends, setFriends] = useState<Friends[]>([]);
   const [friendUsername, setFriendUsername] = useState<string>("");
@@ -182,14 +184,14 @@ const FriendSystem: React.FC = () => {
       const querySnapshot = await getDocs(q);
 
       if (querySnapshot.empty) {
-        alert("المستخدم غير موجود!");
+        alert(t("follow.userNotFound"));
         return;
       }
 
       const receiver = querySnapshot.docs[0].data() as Users;
 
       if (receiver.userId === auth.currentUser.uid) {
-        alert("لا يمكنك إرسال طلب صداقة لنفسك!");
+        alert(t("follow.cantAddSelf"));
         return;
       }
 
@@ -200,7 +202,7 @@ const FriendSystem: React.FC = () => {
       );
       const requestSnapshot = await getDocs(requestQuery);
       if (!requestSnapshot.empty) {
-        alert("لقد أرسلت طلب صداقة مسبقًا!");
+        alert(t("follow.alreadySent"));
         return;
       }
 
@@ -210,10 +212,10 @@ const FriendSystem: React.FC = () => {
         status: "pending",
       });
 
-      alert("تم إرسال طلب الصداقة!");
+      alert(t("follow.requestSent"));
       setFriendUsername("");
     } catch (error) {
-      console.error("خطأ أثناء إرسال الطلب: ", error);
+      console.error(t("follow.error"), error);
     } finally {
       setIsLoading(false);
     }
@@ -280,15 +282,11 @@ const FriendSystem: React.FC = () => {
     }
   };
 
-  const handleClose = () => {
-    navigate("/");
-  };
-
   return (
     <div className="p-4 flex flex-col items-center">
       <div className="flex items-center mb-4">
         <button
-          onClick={handleClose}
+          onClick={() => navigate("/")}
           className="bg-gray-800 text-white px-4 py-2 rounded mb-4 hover:bg-gray-600"
         >
           <IoIosArrowBack />
@@ -298,7 +296,7 @@ const FriendSystem: React.FC = () => {
       <div className="mb-4 w-full max-w-md">
         <input
           type="text"
-          placeholder="أدخل اسم المستخدم لإرسال طلب صداقة"
+          placeholder={t("follow.enterUsername")}
           value={friendUsername}
           onChange={(e) => setFriendUsername(e.target.value)}
           className="p-2 border rounded w-full"
@@ -308,20 +306,22 @@ const FriendSystem: React.FC = () => {
           disabled={isLoading}
           className="bg-blue-500 text-white px-4 py-2 rounded mt-2 w-full hover:bg-blue-600"
         >
-          {isLoading ? "جاري الإرسال..." : "إرسال طلب صداقة"}
+          {isLoading ? t("follow.sending") : t("follow.sendRequest")}
         </button>
       </div>
 
-      <h3 className="text-lg font-bold mt-6">عدد الأصدقاء: {friendsCount}</h3>
+      <h3 className="text-lg font-bold mt-6">
+        {t("follow.friendCount", { count: friendsCount })}
+      </h3>
 
-      <h3 className="text-lg font-bold mt-6">طلبات الصداقة الواردة</h3>
+      <h3 className="text-lg font-bold mt-6">{t("follow.incomingRequests")}</h3>
       {loadingRequests ? (
         <>
           <FriendSkeleton />
           <FriendSkeleton />
         </>
       ) : requests.length === 0 ? (
-        <p>لا يوجد طلبات صداقة جديدة.</p>
+        <p>{t("follow.noRequests")}</p>
       ) : (
         requests.map((request) => (
           <div
@@ -340,21 +340,21 @@ const FriendSystem: React.FC = () => {
                 disabled={isLoading}
                 className="bg-green-500 text-white px-3 py-1 rounded mr-2"
               >
-                قبول
+                {t("follow.accept")}
               </button>
               <button
                 onClick={() => rejectFriendRequest(request.id)}
                 disabled={isLoading}
                 className="bg-red-500 text-white px-3 py-1 rounded"
               >
-                رفض
+                {t("follow.reject")}
               </button>
             </div>
           </div>
         ))
       )}
 
-      <h3 className="text-lg font-bold mt-6">الأصدقاء الحاليين</h3>
+      <h3 className="text-lg font-bold mt-6">{t("follow.currentFriends")}</h3>
       {loadingFriends ? (
         <>
           <FriendSkeleton />
@@ -362,7 +362,7 @@ const FriendSystem: React.FC = () => {
           <FriendSkeleton />
         </>
       ) : friends.length === 0 ? (
-        <p>لا يوجد أصدقاء حاليين.</p>
+        <p>{t("follow.noFriends")}</p>
       ) : (
         friends.map((friend) => (
           <div
@@ -380,7 +380,7 @@ const FriendSystem: React.FC = () => {
               disabled={isLoading}
               className="bg-red-500 text-white px-3 py-1 rounded"
             >
-              إزالة
+              {t("follow.remove")}
             </button>
           </div>
         ))

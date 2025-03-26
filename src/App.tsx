@@ -14,11 +14,21 @@ import Cookies from "js-cookie";
 import "./index.css";
 import FollowSystem from "./componets/FollowSystem";
 import { doc, getDoc } from "firebase/firestore";
+import { LanguageProvider } from "./contexts/LanguageContext";
+import { useTranslation } from "react-i18next";
+import "./i18n";
+import { FaBell } from "react-icons/fa";
+import Notifications from "./componets/Notifications";
 
 const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [userId, setUserId] = useState<string>("");
   const [theme, setTheme] = useState<"light" | "dark" | "pink">("light");
+  const { i18n } = useTranslation();
+  const [language, setLanguage] = useState(() => {
+    return localStorage.getItem("language") || "ar";
+  });
+  const [showNotifications, setShowNotifications] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -55,6 +65,13 @@ const App: React.FC = () => {
 
     loadUserTheme();
   }, []);
+
+  useEffect(() => {
+    document.documentElement.lang = language;
+    document.dir = language === "ar" ? "rtl" : "ltr";
+    localStorage.setItem("language", language);
+    i18n.changeLanguage(language);
+  }, [i18n, language]);
 
   // تطبيق الألوان حسب الثيم
   useEffect(() => {
@@ -110,74 +127,100 @@ const App: React.FC = () => {
     setIsLoggedIn(true);
     setUserId(userId);
   };
-  return (
-    <div>
-      <Router>
-        <Routes>
-          {/* الصفحة الرئيسية هي البروفايل مباشرة إذا كان المستخدم مسجل دخوله */}
-          <Route
-            path="/"
-            element={
-              isLoggedIn ? (
-                <Navigate to={`/profile/${userId}`} replace />
-              ) : (
-                <Navigate to="/signup" replace />
-              )
-            }
-          />
-          {/* إذا كان المستخدم مسجل دخوله، يتم توجيهه مباشرة إلى البروفايل */}
-          <Route
-            path="/login"
-            element={
-              isLoggedIn ? (
-                <Navigate to={`/profile/${userId}`} replace />
-              ) : (
-                <Login onLogin={handleLogin} />
-              )
-            }
-          />
-          {/* صفحة التسجيل */}
-          <Route
-            path="/signup"
-            element={
-              isLoggedIn ? (
-                <Navigate to={`/profile/${userId}`} replace />
-              ) : (
-                <Signup onSignup={handleLogin} />
-              )
-            }
-          />
-          {/* صفحة البروفايل */}
-          <Route
-            path="/profile/:userId"
-            element={
-              isLoggedIn ? <Profile /> : <Navigate to="/login" replace />
-            }
-          />
-          {/* صفحة FollowSystem */}
-          <Route
-            path="/follow-system"
-            element={
-              isLoggedIn ? <FollowSystem /> : <Navigate to="/login" replace />
-            }
-          />
-          {/* صفحة FollowUser */}
-          {/* صفحة الخطأ 404 */}
-          <Route path="*" element={<div>404 - Page Not Found</div>} />
-        </Routes>
 
-        {/* زر تسجيل الخروج يظهر فقط عندما يكون المستخدم مسجل دخوله */}
-        {isLoggedIn && (
-          <button
-            hidden
-            onClick={handleLogout}
-            className="fixed bottom-5 left-6 bg-red-500 text-white px-4 py-2 rounded-full hover:bg-red-600 transition"
-          >
-            Logout
-          </button>
-        )}
-      </Router>
-    </div>
+  const handleLanguageChange = () => {
+    const newLang = language === "en" ? "ar" : "en";
+    setLanguage(newLang);
+    localStorage.setItem("language", newLang);
+    document.documentElement.lang = newLang;
+    document.dir = newLang === "ar" ? "rtl" : "ltr";
+    i18n.changeLanguage(newLang);
+  };
+
+  return (
+    <LanguageProvider>
+      <div>
+        <Router>
+          <div className="fixed top-4 right-4 flex gap-2 z-50">
+            {!isLoggedIn ? (
+              <button
+                onClick={handleLanguageChange}
+                className="bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300"
+              >
+                {language === "en" ? "العربية" : "English"}
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowNotifications(true)}
+                className="bg-gray-200 p-2 rounded-full hover:bg-gray-300 transition-colors"
+              >
+                <FaBell className="text-xl" />
+              </button>
+            )}
+          </div>
+
+          {isLoggedIn && showNotifications && (
+            <Notifications onClose={() => setShowNotifications(false)} />
+          )}
+
+          <Routes>
+            <Route
+              path="/"
+              element={
+                isLoggedIn ? (
+                  <Navigate to={`/profile/${userId}`} replace />
+                ) : (
+                  <Navigate to="/signup" replace />
+                )
+              }
+            />
+            <Route
+              path="/login"
+              element={
+                isLoggedIn ? (
+                  <Navigate to={`/profile/${userId}`} replace />
+                ) : (
+                  <Login onLogin={handleLogin} />
+                )
+              }
+            />
+            <Route
+              path="/signup"
+              element={
+                isLoggedIn ? (
+                  <Navigate to={`/profile/${userId}`} replace />
+                ) : (
+                  <Signup onSignup={handleLogin} />
+                )
+              }
+            />
+            <Route
+              path="/profile/:userId"
+              element={
+                isLoggedIn ? <Profile /> : <Navigate to="/login" replace />
+              }
+            />
+            <Route
+              path="/follow-system"
+              element={
+                isLoggedIn ? <FollowSystem /> : <Navigate to="/login" replace />
+              }
+            />
+            <Route path="*" element={<div>404 - Page Not Found</div>} />
+          </Routes>
+
+          {isLoggedIn && (
+            <button
+              hidden
+              onClick={handleLogout}
+              className="fixed bottom-5 left-6 bg-red-500 text-white px-4 py-2 rounded-full hover:bg-red-600 transition"
+            >
+              {language === "en" ? "Logout" : "تسجيل الخروج"}
+            </button>
+          )}
+        </Router>
+      </div>
+    </LanguageProvider>
   );
 };
 

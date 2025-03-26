@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { auth, db, googleProvider } from "./firebase";
 import { signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
 import { doc, setDoc, Timestamp } from "firebase/firestore";
+import { FcGoogle } from "react-icons/fc";
+import { useTranslation } from "react-i18next";
 
 interface LoginProps {
   onLogin: (userId: string) => void;
@@ -14,6 +16,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [error, setError] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
+  const language = i18n.language;
 
   // دالة لحفظ بيانات المستخدم في Firestore
   const saveUserToFirestore = async (userId: string, email: string) => {
@@ -89,11 +93,17 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         className="bg-white p-6 rounded-lg shadow-md w-full max-w-sm"
         onSubmit={handleEmailLogin}
       >
-        <h2 className="text-2xl font-bold mb-4 text-center">تسجيل الدخول</h2>
+        <h2
+          className={`text-xl font-bold mb-6 ${
+            language === "ar" ? "text-right w-full" : "text-left"
+          }`}
+        >
+          {t("welcome.back")}
+        </h2>
 
         <input
           type="email"
-          placeholder="البريد الإلكتروني"
+          placeholder={t("login.email")}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           className="w-full p-2 mb-4 border rounded-lg"
@@ -102,7 +112,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
         <input
           type="password"
-          placeholder="كلمة المرور"
+          placeholder={t("login.password")}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="w-full p-2 mb-4 border rounded-lg"
@@ -114,24 +124,37 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           className="w-full bg-blue-500 text-white p-2 rounded-lg hover:bg-blue-600 disabled:bg-gray-400"
           disabled={isLoading}
         >
-          {isLoading ? "جاري تسجيل الدخول..." : "تسجيل الدخول"}
+          {isLoading ? t("login.loading") : t("login.button")}
         </button>
 
         {error && <p className="text-red-500 text-center mt-4">{error}</p>}
 
+        <div className="my-4 flex items-center">
+          <div className="flex-1 border-t border-gray-300"></div>
+          <span className="px-4 text-gray-500 text-sm">{t("login.or")}</span>
+          <div className="flex-1 border-t border-gray-300"></div>
+        </div>
+
         <button
           onClick={handleGoogleLogin}
-          className="w-full mt-2 bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 disabled:bg-gray-400"
+          className="w-full mt-2 bg-white-200 border-1 text-black p-2 rounded-2xl hover:bg-red-600 disabled:bg-gray-400 flex items-center justify-center gap-2"
           disabled={isLoading}
         >
-          {isLoading ? "جاري تسجيل الدخول..." : "تسجيل الدخول باستخدام Google"}
+          {isLoading ? (
+            t("login.loading")
+          ) : (
+            <>
+              <FcGoogle className="text-lg" />
+              <span>{t("login.google")}</span>
+            </>
+          )}
         </button>
       </form>
 
       <p className="mt-4 text-center">
-        ليس لديك حساب؟{" "}
+        {t("login.noAccount")}{" "}
         <a href="/signup" className="text-blue-500 hover:underline">
-          أنشئ حسابًا
+          {t("login.signUp")}
         </a>
       </p>
     </div>

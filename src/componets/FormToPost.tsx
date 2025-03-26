@@ -8,6 +8,7 @@ import { BsSendFill } from "react-icons/bs";
 import { FaSpotify } from "react-icons/fa";
 import { FaMicrophone } from "react-icons/fa";
 import MediaHandling from "./MediaHandling";
+import { useTranslation } from "react-i18next";
 
 interface FormToPostProps {
   onSubmit: (
@@ -21,6 +22,7 @@ interface FormToPostProps {
 }
 
 const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
+  const { t } = useTranslation();
   const [text, setText] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -44,7 +46,7 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
   useEffect(() => {
     const handleOnlineStatus = () => {
       if (!navigator.onLine) {
-        alert("أنت غير متصل بالإنترنت. بعض الميزات قد لا تعمل.");
+        alert(t("error.offline"));
       }
     };
 
@@ -55,7 +57,7 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
       window.removeEventListener("online", handleOnlineStatus);
       window.removeEventListener("offline", handleOnlineStatus);
     };
-  }, []);
+  }, [t]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.length) {
@@ -63,7 +65,7 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
       const maxSize = 5 * 1024 * 1024; // 5MB
 
       if (file.size > maxSize) {
-        setError("حجم الملف كبير جداً. الحد الأقصى هو 5MB");
+        setError(t("post.fileTooLarge"));
         return;
       }
 
@@ -92,31 +94,44 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
   };
 
   const handleStartRecording = async () => {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setError("متصفحك لا يدعم تسجيل الصوت.");
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError(t("post.recordingError"));
       return;
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          sampleRate: 44100,
+        },
+      });
 
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: "audio/webm;codecs=opus",
+      });
+
+      mediaRecorderRef.current = mediaRecorder;
       const audioChunks: BlobPart[] = [];
+
       mediaRecorder.ondataavailable = (event) => {
-        audioChunks.push(event.data);
+        if (event.data.size > 0) {
+          audioChunks.push(event.data);
+        }
       };
 
       mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunks, { type: "audio/wav" });
+        const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
         setAudioBlob(audioBlob);
         setAudioUrl(URL.createObjectURL(audioBlob));
       };
 
-      mediaRecorder.start();
+      mediaRecorder.start(1000); // تسجيل كل ثانية
       setIsRecording(true);
-    } catch {
-      setError("حدث خطأ أثناء بدء التسجيل.");
+    } catch (error) {
+      console.error("Recording error:", error);
+      setError(t("post.recordingError"));
     }
   };
 
@@ -150,8 +165,10 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUser?.uid) {
-      console.error("No user logged in");
+    if (!currentUser?.uid) return;
+
+    if (!text && !imageFile && !spotifyUrl && !audioBlob) {
+      setError(t("post.required"));
       return;
     }
 
@@ -159,66 +176,26 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
     setIsLoading(true);
 
     try {
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error("Request timeout")), 30000);
-      });
+      let finalImageUrl = null;
+      let finalAudioUrl = null;
 
-      interface UploadResult {
-        finalImageUrl: string | null;
-        finalAudioUrl: string | null;
+      if (imageFile) {
+        const compressedImage = await compressImage(imageFile);
+        finalImageUrl = await uploadFile(compressedImage, "images");
       }
 
-      const uploadPromise = async (): Promise<UploadResult> => {
-        let finalImageUrl = null;
-        let finalAudioUrl = null;
-
-        if (imageFile) {
-          const compressedImage = await compressImage(imageFile);
-          finalImageUrl = await uploadFile(compressedImage, "images");
-        }
-
-        if (audioBlob) {
-          finalAudioUrl = await uploadFile(audioBlob, "audio");
-        }
-
-        return { finalImageUrl, finalAudioUrl };
-      };
-
-      const result = (await Promise.race([
-        uploadPromise(),
-        timeoutPromise,
-      ])) as UploadResult;
-
-      if (
-        !text &&
-        !result.finalImageUrl &&
-        !result.finalAudioUrl &&
-        !spotifyUrl
-      ) {
-        setError("يجب إضافة نص أو وسائط للنشر");
-        return;
+      if (audioBlob) {
+        finalAudioUrl = await uploadFile(audioBlob, "audio");
       }
 
       const timestamp = Timestamp.now().toMillis();
-
-      // Use the onSubmit prop instead of directly adding to Firestore
-      await onSubmit(
-        text,
-        result.finalImageUrl,
-        spotifyUrl,
-        result.finalAudioUrl,
-        timestamp
-      );
+      await onSubmit(text, finalImageUrl, spotifyUrl, finalAudioUrl, timestamp);
 
       resetForm();
       onClose();
-    } catch (error: unknown) {
+    } catch (error) {
       console.error("Error creating post:", error);
-      if (error instanceof Error && error.message === "Request timeout") {
-        setError("فشل الاتصال. يرجى المحاولة مرة أخرى.");
-      } else {
-        setError("حدث خطأ أثناء إنشاء المنشور");
-      }
+      setError(t("post.error"));
     } finally {
       setIsSubmitting(false);
       setIsLoading(false);
@@ -226,7 +203,7 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
   };
 
   const compressImage = async (file: File): Promise<File> => {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = (event) => {
@@ -265,6 +242,8 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
                     lastModified: Date.now(),
                   })
                 );
+              } else {
+                reject(new Error("Blob creation failed"));
               }
             },
             "image/jpeg",
@@ -283,26 +262,36 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
       file instanceof File ? file.name : "audio.wav"
     }`;
     const storageRef = ref(storage, fileName);
-    const uploadTask = uploadBytesResumable(storageRef, file);
 
-    return new Promise((resolve, reject) => {
-      uploadTask.on(
-        "state_changed",
-        (snapshot) => {
-          const progress =
-            (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          setProgress(progress);
-        },
-        (error) => {
-          console.error(error);
-          reject(error);
-        },
-        async () => {
-          const downloadURL = await getDownloadURL(storageRef);
-          resolve(downloadURL);
-        }
-      );
-    });
+    try {
+      const uploadTask = uploadBytesResumable(storageRef, file);
+
+      return new Promise((resolve, reject) => {
+        uploadTask.on(
+          "state_changed",
+          (snapshot) => {
+            const progress =
+              (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            setProgress(progress);
+          },
+          (error) => {
+            console.error("Upload error:", error);
+            reject(error);
+          },
+          async () => {
+            try {
+              const url = await getDownloadURL(uploadTask.snapshot.ref);
+              resolve(url);
+            } catch (error) {
+              reject(error);
+            }
+          }
+        );
+      });
+    } catch (error) {
+      console.error("Upload initialization error:", error);
+      throw error;
+    }
   };
 
   const resetForm = () => {
@@ -336,7 +325,7 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
         )}
 
         <button
-          aria-label="Close form"
+          aria-label={t("action.close")}
           className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 hover:scale-110 transition-all"
           onClick={onClose}
         >
@@ -344,19 +333,20 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
         </button>
 
         <h2 className="text-2xl font-semibold text-gray-800 text-center mb-4">
-          what's happening?
+          {t("post.createNew")}
         </h2>
 
         {imageUrl && (
           <div className="relative w-full mb-4 rounded-lg overflow-hidden shadow-lg hover:scale-105 transition-all">
             <img
               src={imageUrl}
-              alt="preview"
+              alt={t("post.preview")}
               className="w-full h-auto max-h-80 object-cover"
             />
             <button
               className="absolute top-2 right-2 bg-white text-gray-500 rounded-full p-2 hover:bg-gray-200 shadow-md hover:scale-110 transition-all"
               onClick={handleImageRemove}
+              aria-label={t("action.remove")}
             >
               <RiCloseLargeFill className="w-5 h-5" />
             </button>
@@ -369,13 +359,13 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
             <button
               className="absolute top-2 right-2 bg-white text-gray-500 rounded-full p-2 hover:bg-gray-200 shadow-md hover:scale-110 transition-all"
               onClick={handleAudioRemove}
+              aria-label={t("action.remove")}
             >
               <RiCloseLargeFill className="w-5 h-5" />
             </button>
           </div>
         )}
 
-        {/* Add Spotify Preview */}
         {spotifyUrl && validateSpotifyUrl(spotifyUrl) && (
           <div className="relative w-full mb-4">
             <MediaHandling spotifyUrl={spotifyUrl} />
@@ -385,6 +375,7 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
                 setSpotifyUrl("");
                 setIsSpotifyOpen(false);
               }}
+              aria-label={t("action.remove")}
             >
               <RiCloseLargeFill className="w-5 h-5" />
             </button>
@@ -394,7 +385,7 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
         <textarea
           ref={inputRef}
           className="w-full p-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 mb-4 text-lg placeholder-gray-400 transition-all"
-          placeholder="write somthing.."
+          placeholder={t("post.writeHere")}
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
@@ -405,6 +396,7 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
               type="button"
               className="text-3xl text-green-500 hover:text-green-400 transform hover:scale-110 transition-all"
               onClick={handleSpotifyToggle}
+              aria-label={t("spotify.add")}
             >
               <FaSpotify />
             </button>
@@ -415,7 +407,7 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
               <input
                 type="text"
                 className="p-2 border-2 border-gray-300 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="Paste Spotify URL (track/album/playlist)"
+                placeholder={t("spotify.paste")}
                 value={spotifyUrl}
                 onChange={handleSpotifyUrlChange}
               />
@@ -426,6 +418,7 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
                   setSpotifyUrl("");
                   setIsSpotifyOpen(false);
                 }}
+                aria-label={t("action.remove")}
               >
                 <RiCloseLargeFill className="w-6 h-6" />
               </button>
@@ -440,6 +433,7 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
                 className="hidden"
                 onChange={handleFileChange}
                 accept="image/*, video/*"
+                aria-label={t("post.addImage")}
               />
             </label>
           )}
@@ -450,6 +444,9 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
               isRecording ? "text-red-500" : "text-gray-600"
             } hover:text-blue-500 transform hover:scale-105 transition-all`}
             onClick={isRecording ? handleStopRecording : handleStartRecording}
+            aria-label={
+              isRecording ? t("post.stopRecording") : t("post.startRecording")
+            }
           >
             <FaMicrophone />
           </button>
@@ -465,7 +462,7 @@ const FormToPost: React.FC<FormToPostProps> = ({ onSubmit, onClose }) => {
           >
             {isLoading ? (
               <div className="flex items-center">
-                <span className="mr-2">جاري النشر</span>
+                <span className="mr-2">{t("post.posting")}</span>
                 <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
               </div>
             ) : (

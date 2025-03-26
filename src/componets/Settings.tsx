@@ -11,6 +11,7 @@ import {
 } from "firebase/firestore";
 import { ref, uploadString, getDownloadURL } from "firebase/storage";
 import { onAuthStateChanged, updateProfile } from "firebase/auth";
+import { useTranslation } from "react-i18next";
 
 interface SettingsProps {
   userId: string;
@@ -25,6 +26,7 @@ const Settings: React.FC<SettingsProps> = ({
   handleLogout,
   onProfileUpdate,
 }) => {
+  const { t, i18n } = useTranslation();
   const [name, setName] = useState<string>("");
   const [username, setUsername] = useState<string>("");
   const [photoURL, setPhotoURL] = useState<string>("");
@@ -35,6 +37,9 @@ const Settings: React.FC<SettingsProps> = ({
     null
   );
   const [isImageChanged, setIsImageChanged] = useState(false);
+  const [language, setLanguage] = useState(
+    localStorage.getItem("language") || "ar"
+  );
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -150,7 +155,6 @@ const Settings: React.FC<SettingsProps> = ({
     await uploadString(imageRef, imageDataUrl, "data_url");
     return getDownloadURL(imageRef);
   };
-
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -163,13 +167,34 @@ const Settings: React.FC<SettingsProps> = ({
           return;
         }
 
-        const MAX_FILE_SIZE = 5 * 1024 * 1024;
+        const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+        let imageToProcess = file;
+
         if (file.size > MAX_FILE_SIZE) {
           console.log("جاري ضغط الصورة...");
+          const compressedImage = await compressImage(file);
+
+          // Convert base64 to blob and create File object
+          const response = await fetch(compressedImage);
+          const blob = await response.blob();
+          imageToProcess = new File([blob], file.name, {
+            type: file.type,
+            lastModified: file.lastModified,
+          });
+
+          // Check if we need additional compression
+          if (imageToProcess.size > MAX_FILE_SIZE) {
+            const furtherCompressedImage = await compressImage(imageToProcess);
+            setPhotoURL(furtherCompressedImage);
+          } else {
+            setPhotoURL(compressedImage);
+          }
+        } else {
+          // If file is already small enough, still compress slightly for consistency
+          const compressedImage = await compressImage(file);
+          setPhotoURL(compressedImage);
         }
 
-        const compressedImage = await compressImage(file);
-        setPhotoURL(compressedImage);
         setIsImageChanged(true);
       } catch (error) {
         console.error("Error processing image:", error);
@@ -182,14 +207,12 @@ const Settings: React.FC<SettingsProps> = ({
 
   const handleSave = async () => {
     if (!validateUsername(username)) {
-      setError(
-        "يجب أن يكون اسم المستخدم باللغة الإنجليزية، يحتوي على 4 أحرف على الأقل، ويمكن أن يشمل أرقامًا و (_) فقط."
-      );
+      setError(t("settings.usernameRules"));
       return;
     }
 
     if (!canChangeUsername()) {
-      setError("لا يمكنك تغيير اسم المستخدم إلا مرة كل 14 يومًا.");
+      setError(t("settings.usernameLimit"));
       return;
     }
 
@@ -207,7 +230,7 @@ const Settings: React.FC<SettingsProps> = ({
           (doc) => doc.id !== userId
         );
         if (existingUser) {
-          setError("اسم المستخدم مأخوذ بالفعل، يرجى اختيار اسم آخر.");
+          setError(t("settings.usernameTaken"));
           return;
         }
       }
@@ -239,12 +262,12 @@ const Settings: React.FC<SettingsProps> = ({
       setError("");
       setIsImageChanged(false);
 
-      alert("تم حفظ التغييرات بنجاح!");
+      alert(t("settings.saveSuccess"));
       onProfileUpdate?.();
       onClose();
     } catch (error) {
       console.error("Error saving profile:", error);
-      setError("حدث خطأ أثناء حفظ البيانات!");
+      setError(t("error.occurred"));
     } finally {
       setLoading(false);
     }
@@ -253,7 +276,9 @@ const Settings: React.FC<SettingsProps> = ({
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 w-96 max-w-full">
-        <h2 className="text-2xl font-bold mb-4 text-center">الإعدادات</h2>
+        <h2 className="text-2xl font-bold mb-4 text-center">
+          {t("settings.title")}
+        </h2>
 
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4">
@@ -302,7 +327,7 @@ const Settings: React.FC<SettingsProps> = ({
         <div className="space-y-4 mb-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              الاسم
+              {t("settings.name")}
             </label>
             <input
               type="text"
@@ -314,7 +339,7 @@ const Settings: React.FC<SettingsProps> = ({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              اسم المستخدم
+              {t("settings.username")}
             </label>
             <input
               type="text"
@@ -326,7 +351,7 @@ const Settings: React.FC<SettingsProps> = ({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              البريد الإلكتروني
+              {t("settings.email")}
             </label>
             <input
               type="email"
@@ -334,6 +359,91 @@ const Settings: React.FC<SettingsProps> = ({
               disabled
               className="w-full p-2 border rounded-lg bg-gray-100"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              {t("settings.language")}
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => {
+                  setLanguage("en");
+                  localStorage.setItem("language", "en");
+                  document.documentElement.lang = "en";
+                  document.dir = "ltr";
+                  i18n.changeLanguage("en");
+                }}
+                className={`flex items-center gap-3 p-4 rounded-xl border-2 ${
+                  language === "en"
+                    ? "border-blue-500 bg-blue-50"
+                    : "border-gray-200 hover:border-gray-300"
+                }`}
+              >
+                <div className="w-6 h-6 rounded-full overflow-hidden">
+                  <img
+                    src="https://flagcdn.com/us.svg"
+                    alt="English"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <span className="flex-grow text-left">English</span>
+                {language === "en" && (
+                  <svg
+                    className="w-6 h-6 text-blue-500"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                )}
+              </button>
+
+              <button
+                onClick={() => {
+                  setLanguage("ar");
+                  localStorage.setItem("language", "ar");
+                  document.documentElement.lang = "ar";
+                  document.dir = "rtl";
+                  i18n.changeLanguage("ar");
+                }}
+                className={`flex items-center gap-3 p-4 rounded-xl border-2 ${
+                  language === "ar"
+                    ? "border-blue-500 bg-blue-50"
+                    : "border-gray-200 hover:border-gray-300"
+                }`}
+              >
+                <div className="w-6 h-6 rounded-full overflow-hidden">
+                  <img
+                    src="https://flagcdn.com/sa.svg"
+                    alt="Arabic"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <span className="flex-grow text-left">العربية</span>
+                {language === "ar" && (
+                  <svg
+                    className="w-6 h-6 text-blue-500"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                )}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -343,7 +453,7 @@ const Settings: React.FC<SettingsProps> = ({
             className="bg-blue-500 text-white px-4 py-2 rounded-full w-full hover:bg-blue-600 transition disabled:bg-gray-400"
             disabled={loading}
           >
-            {loading ? "جاري الحفظ..." : "حفظ التغييرات"}
+            {loading ? t("settings.saving") : t("settings.save")}
           </button>
 
           <div className="flex justify-between gap-4">
@@ -352,14 +462,14 @@ const Settings: React.FC<SettingsProps> = ({
               className="bg-gray-500 text-white px-4 py-2 rounded-full w-full hover:bg-gray-600 transition disabled:bg-gray-400"
               disabled={loading}
             >
-              إغلاق
+              {t("settings.close")}
             </button>
             <button
               onClick={handleLogout}
               className="bg-red-500 text-white px-4 py-2 rounded-full w-full hover:bg-red-600 transition disabled:bg-gray-400"
               disabled={loading}
             >
-              {loading ? "جاري التحميل..." : "تسجيل الخروج"}
+              {loading ? t("settings.loading") : t("settings.logout")}
             </button>
           </div>
         </div>
