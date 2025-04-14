@@ -5,7 +5,6 @@ import {
   collection,
   query,
   where,
-  Timestamp,
   deleteDoc,
   doc,
   updateDoc,
@@ -22,22 +21,12 @@ import {
 import { db } from "./firebase";
 import { signOut } from "firebase/auth";
 import { auth } from "./firebase";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, Navigate } from "react-router-dom";
 import { Post } from "./PostInterface";
 import { FaUserFriends } from "react-icons/fa";
 import Settings from "./Settings";
 import { MdOutlineSettingsSuggest } from "react-icons/md";
 import { IoMdAdd } from "react-icons/io";
-
-const normalizeTimestamp = (
-  timestamp: Timestamp | Date | string | number | null
-): number => {
-  if (timestamp instanceof Timestamp) return timestamp.toMillis();
-  if (timestamp instanceof Date) return timestamp.getTime();
-  if (typeof timestamp === "number") return timestamp;
-  if (typeof timestamp === "string") return new Date(timestamp).getTime();
-  return Date.now();
-};
 
 const PostSkeleton = () => (
   <div className="bg-gray-400 rounded-3xl overflow-hidden shadow-md w-full max-w-lg mb-4 animate-pulse">
@@ -59,28 +48,29 @@ const PostSkeleton = () => (
 
 function Profile() {
   const { userId } = useParams<{ userId: string }>();
+  const navigate = useNavigate();
+
+  // State hooks
   const [posts, setPosts] = useState<Post[]>([]);
   const [showForm, setShowForm] = useState<boolean>(false);
   const [showSettings, setShowSettings] = useState<boolean>(false);
-  const [loadingPosts, setLoadingPosts] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
   const [friendCount, setFriendCount] = useState<number>(0);
-  const navigate = useNavigate();
+  const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
+  const [isLoadingAuth, setIsLoadingAuth] = useState<boolean>(true);
+  const [loadingPosts, setLoadingPosts] = useState<boolean>(true);
 
-  // Helper function to convert Firestore doc to Post type
+  // Helper functions
   const convertDocToPost = useCallback(
     (doc: QueryDocumentSnapshot<DocumentData>, isOwnPost: boolean): Post => {
       const data = doc.data();
       const currentUserId = auth.currentUser?.uid;
 
-      // التأكد من أن likedBy موجودة قبل استخدامها
       let likedBy: string[] = [];
       if (Array.isArray(data.likedBy)) {
         likedBy = data.likedBy;
       }
 
-      // تحويل timestamp إلى النوع المناسب إذا كان رقم
       let timestamp = data.timestamp;
       if (typeof timestamp === "number") {
         timestamp = new Date(timestamp);
@@ -89,7 +79,7 @@ function Profile() {
       return {
         id: doc.id,
         text: data.text || "",
-        timestamp: timestamp, // استخدام القيمة المحولة
+        timestamp: timestamp,
         userId: data.userId,
         image: data.image || null,
         mediaUrl: data.mediaUrl || "",
@@ -130,14 +120,9 @@ function Profile() {
           friendsList.add(doc.data().userId1);
         });
 
-        console.log(
-          "Found friends in both directions:",
-          Array.from(friendsList)
-        );
         return Array.from(friendsList);
       } catch {
         if (retries > 0) {
-          console.log(`Retrying friends fetch. Attempts left: ${retries - 1}`);
           await new Promise((resolve) => setTimeout(resolve, 1000));
           return fetchFriendsWithRetry(retries - 1);
         }
@@ -147,44 +132,12 @@ function Profile() {
     [userId]
   );
 
-  // تحسين دالة جلب الأصدقاء
-  useEffect(() => {
-    if (!userId) return;
-
-    // استخدام حل أكثر كفاءة مع batch
-    const friendsQuery = query(
-      collection(db, "Friends"),
-      where("userId1", "in", [userId, auth.currentUser?.uid]),
-      limit(100)
-    );
-
-    const unsubscribeFriends = onSnapshot(friendsQuery, (snapshot) => {
-      // تخزين الأصدقاء في مجموعة لتجنب التكرار
-      const friendSet = new Set<string>();
-
-      snapshot.docs.forEach((doc) => {
-        const data = doc.data();
-        if (data.userId1 === userId) {
-          friendSet.add(data.userId2);
-        } else if (data.userId2 === userId) {
-          friendSet.add(data.userId1);
-        }
-      });
-
-      setFriendCount(friendSet.size);
-    });
-
-    return () => unsubscribeFriends();
-  }, [userId]);
-
-  // تحسين دالة fetchAllPosts
   const fetchAllPosts = useCallback(() => {
     if (!userId) return () => {};
 
     const unsubscribeCallbacks: (() => void)[] = [];
 
     try {
-      // 1. جلب منشورات المستخدم
       const userPostsQuery = query(
         collection(db, "posts"),
         where("userId", "==", userId),
@@ -195,149 +148,42 @@ function Profile() {
       const unsubscribeUserPosts = onSnapshot(
         userPostsQuery,
         (snapshot) => {
-          console.log(`Fetched ${snapshot.docs.length} posts for current user`);
-
           const userPosts = snapshot.docs.map((doc) =>
             convertDocToPost(doc, true)
           );
-
-          // استخدام معرف للمنشورات الحالية للتحقق من التكرار
-          const currentPostIds = new Set(userPosts.map((post) => post.id));
-
           setPosts((prevPosts) => {
-            // الاحتفاظ فقط بمنشورات الأصدقاء من الحالة السابقة
-            const friendPosts = prevPosts.filter(
-              (post) => !currentPostIds.has(post.id) && post.userId !== userId
+            const currentPostIds = new Set(prevPosts.map((post) => post.id));
+            const newPosts = userPosts.filter(
+              (post) => !currentPostIds.has(post.id)
             );
-
-            return [...userPosts, ...friendPosts].sort((a, b) => {
-              const timeA = normalizeTimestamp(a.timestamp);
-              const timeB = normalizeTimestamp(b.timestamp);
-              return timeB - timeA;
-            });
+            return [...prevPosts, ...newPosts];
           });
-
           setLoadingPosts(false);
         },
         (error) => {
           console.error("Error fetching user posts:", error);
+          setError("Failed to load posts");
           setLoadingPosts(false);
         }
       );
 
       unsubscribeCallbacks.push(unsubscribeUserPosts);
-
-      // 2. جلب منشورات الأصدقاء
-      fetchFriendsWithRetry().then((friendIds) => {
-        console.log("Got friend IDs:", friendIds);
-
-        // إذا لم يكن هناك أصدقاء
-        if (friendIds.length === 0) {
-          return;
-        }
-
-        // جلب منشورات الأصدقاء (حد أقصى 10 أصدقاء في كل مرة للأداء)
-        const friendBatches = [];
-        for (let i = 0; i < friendIds.length; i += 10) {
-          friendBatches.push(friendIds.slice(i, i + 10));
-        }
-
-        friendBatches.forEach((batch) => {
-          // استخدام استعلام مركب للحصول على منشورات كل الأصدقاء في دفعة واحدة
-          const friendsPostsQuery = query(
-            collection(db, "posts"),
-            where("userId", "in", batch),
-            orderBy("timestamp", "desc"),
-            limit(50)
-          );
-
-          const unsubscribeFriendsPosts = onSnapshot(
-            friendsPostsQuery,
-            (snapshot) => {
-              console.log(
-                `Fetched ${snapshot.docs.length} posts for ${batch.length} friends`
-              );
-
-              const newFriendPosts = snapshot.docs.map((doc) =>
-                convertDocToPost(doc, false)
-              );
-              const friendPostIds = new Set(
-                newFriendPosts.map((post) => post.id)
-              );
-
-              setPosts((prevPosts) => {
-                // حذف المنشورات القديمة التي تم استبدالها
-                const otherPosts = prevPosts.filter(
-                  (post) =>
-                    !friendPostIds.has(post.id) && !batch.includes(post.userId)
-                );
-
-                return [...otherPosts, ...newFriendPosts].sort((a, b) => {
-                  const timeA = normalizeTimestamp(a.timestamp);
-                  const timeB = normalizeTimestamp(b.timestamp);
-                  return timeB - timeA;
-                });
-              });
-            },
-            (error) => {
-              console.error("Error fetching friends posts:", error);
-            }
-          );
-
-          unsubscribeCallbacks.push(unsubscribeFriendsPosts);
-        });
-      });
-
-      return () => {
-        unsubscribeCallbacks.forEach((unsubscribe) => unsubscribe());
-      };
     } catch (error) {
       console.error("Error setting up post listeners:", error);
+      setError("Failed to load posts");
       setLoadingPosts(false);
-      setError("حدث خطأ في تحميل المنشورات");
-      return () => {};
     }
-  }, [userId, convertDocToPost, fetchFriendsWithRetry]);
-
-  useEffect(() => {
-    if (!userId) {
-      setLoadingPosts(false);
-      setError("No user ID provided");
-      return;
-    }
-
-    if (!auth.currentUser) {
-      setLoadingPosts(false);
-      setError("User not authenticated");
-      return;
-    }
-
-    console.log("Current user:", auth.currentUser.uid);
-    console.log("Fetching posts for user:", userId);
-
-    setLoadingPosts(true);
-    const unsubscribe = fetchAllPosts();
 
     return () => {
-      if (unsubscribe) {
-        unsubscribe();
-      }
+      unsubscribeCallbacks.forEach((unsubscribe) => unsubscribe());
     };
-  }, [userId, fetchAllPosts, refreshTrigger]);
+  }, [userId, convertDocToPost]);
 
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      navigate("/login");
-    } catch (error) {
-      console.error("Error logging out: ", error);
-    }
-  };
-
-  // Add this function to handle profile updates
   const handleProfileUpdate = useCallback(() => {
-    setRefreshTrigger((prev) => prev + 1);
-  }, []);
+    setPosts([]);
+    setLoadingPosts(true);
+    fetchAllPosts();
+  }, [fetchAllPosts]);
 
   const handleDelete = async (postId: string) => {
     try {
@@ -348,7 +194,6 @@ function Profile() {
     }
   };
 
-  // دالة مساعدة للتأكد من حالة اللايك
   const checkLikeStatus = async (postId: string) => {
     if (!auth.currentUser) return false;
 
@@ -359,25 +204,16 @@ function Profile() {
       const data = postDoc.data();
       const likedBy = data.likedBy || [];
 
-      console.log("حالة اللايك:", {
-        postId,
-        likedBy,
-        isLiked: likedBy.includes(auth.currentUser.uid),
-        likeCount: likedBy.length,
-        currentUser: auth.currentUser.uid,
-      });
-
       return likedBy.includes(auth.currentUser.uid);
     } catch (error) {
-      console.error("خطأ في التحقق من حالة اللايك:", error);
+      console.error("Error checking like status:", error);
       return false;
     }
   };
 
-  // استدعاء الدالة بعد عملية اللايك
   const handleLike = async (postId: string) => {
     if (!auth.currentUser) {
-      console.error("يجب تسجيل الدخول");
+      console.error("Must be logged in");
       return;
     }
 
@@ -386,22 +222,19 @@ function Profile() {
       const postSnap = await getDoc(postRef);
 
       if (!postSnap.exists()) {
-        console.error("المنشور غير موجود");
+        console.error("Post not found");
         return;
       }
 
       const postData = postSnap.data();
       const currentUserId = auth.currentUser.uid;
 
-      // تأكد من أن likedBy موجود دائماً كمصفوفة
       const likedBy: string[] = Array.isArray(postData.likedBy)
         ? [...postData.likedBy]
         : [];
 
-      // تحقق من حالة الإعجاب
       const isLiked = likedBy.includes(currentUserId);
 
-      // تحديث UI أولاً للاستجابة السريعة
       setPosts((prev) =>
         prev.map((post) => {
           if (post.id === postId) {
@@ -420,20 +253,17 @@ function Profile() {
         })
       );
 
-      // تحديث Firestore بطريقة مباشرة بدون استخدام arrayUnion/arrayRemove
       const updatedLikedBy = isLiked
         ? likedBy.filter((id) => id !== currentUserId)
         : [...likedBy, currentUserId];
 
-      // استخدام كائن بسيط محدد جيداً
       await updateDoc(postRef, {
         likedBy: updatedLikedBy,
         likeCount: updatedLikedBy.length,
       });
     } catch (error) {
-      console.error("خطأ في تحديث الإعجاب:", error);
+      console.error("Error updating like:", error);
 
-      // في حالة الفشل، استعادة الحالة الأصلية
       checkLikeStatus(postId).then((actualLikeStatus) => {
         setPosts((prev) =>
           prev.map((post) => {
@@ -450,17 +280,14 @@ function Profile() {
   const handleSubmit = async (
     text: string,
     imageUrl: string | null,
-    spotifyUrl: string,
-    // استخدام underscore للإشارة إلى أن هذه المتغيرات غير مستخدمة
-   
+    spotifyUrl: string
   ) => {
     try {
       if (!auth.currentUser?.uid) {
-        console.error("لم يتم تسجيل الدخول");
+        console.error("Not logged in");
         return;
       }
 
-      // 1. إعداد بيانات المنشور بشكل صحيح
       const postData = {
         text: text || "",
         image: imageUrl,
@@ -472,37 +299,25 @@ function Profile() {
         createdAt: serverTimestamp(),
       };
 
-      console.log("جاري إضافة منشور جديد:", postData);
-
-      // 2. إضافة المنشور إلى Firestore
-      const docRef = await addDoc(collection(db, "posts"), postData);
-      console.log("تم إضافة المنشور بنجاح!", docRef.id);
-
-      // 4. إغلاق نافذة الإضافة
+      await addDoc(collection(db, "posts"), postData);
       setShowForm(false);
     } catch (error) {
-      console.error("خطأ في إضافة المنشور:", error);
-      setError("حدث خطأ في إضافة المنشور");
+      console.error("Error adding post:", error);
+      setError("Failed to add post");
     }
   };
 
-  // دالة لمزامنة حالة المنشورات من قاعدة البيانات
   const syncPostsWithFirestore = useCallback(async () => {
     if (!userId || !auth.currentUser) return;
 
     try {
-      console.log("جاري مزامنة المنشورات مع قاعدة البيانات...");
-
-      // 1. جلب المنشورات الحالية من الحالة المحلية
       const currentPosts = [...posts];
       const postIds = currentPosts.map((post) => post.id);
 
-      // 2. جلب البيانات المحدثة من فايرستور
       const postsSnapshot = await Promise.all(
         postIds.map((id) => getDoc(doc(db, "posts", id)))
       );
 
-      // 3. تحديث المنشورات المحلية بالبيانات من قاعدة البيانات
       const updatedPosts = currentPosts.map((post, index) => {
         const docSnapshot = postsSnapshot[index];
         if (docSnapshot.exists()) {
@@ -510,11 +325,7 @@ function Profile() {
           const likedBy = data.likedBy || [];
           const isLiked = likedBy.includes(auth.currentUser?.uid);
 
-          // تحديث فقط إذا اختلفت البيانات
           if (post.liked !== isLiked || post.likeCount !== likedBy.length) {
-            console.log(
-              `تحديث المنشور ${post.id}: isLiked من ${post.liked} إلى ${isLiked}, likeCount من ${post.likeCount} إلى ${likedBy.length}`
-            );
             return {
               ...post,
               liked: isLiked,
@@ -526,23 +337,105 @@ function Profile() {
         return post;
       });
 
-      // 4. تحديث الحالة بالمنشورات المحدثة
       setPosts(updatedPosts);
-      console.log("تمت مزامنة المنشورات بنجاح!");
     } catch (error) {
-      console.error("خطأ في مزامنة المنشورات:", error);
+      console.error("Error syncing posts:", error);
     }
   }, [posts, userId]);
 
-  // استدعاء دالة المزامنة عند الضرورة
+  // Effect hooks
   useEffect(() => {
-    // مزامنة المنشورات كل 30 ثانية
+    const checkAuthorization = async () => {
+      try {
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
+          setIsAuthorized(false);
+          setIsLoadingAuth(false);
+          return;
+        }
+
+        if (currentUser.uid === userId) {
+          setIsAuthorized(true);
+          setIsLoadingAuth(false);
+          return;
+        }
+
+        const friendshipDoc = await getDoc(
+          doc(db, "Friendships", `${currentUser.uid}_${userId}`)
+        );
+        const isFriend = friendshipDoc.exists();
+
+        setIsAuthorized(isFriend);
+        setIsLoadingAuth(false);
+      } catch (error) {
+        console.error("Error checking authorization:", error);
+        setIsAuthorized(false);
+        setIsLoadingAuth(false);
+      }
+    };
+
+    checkAuthorization();
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const friendsQuery = query(
+      collection(db, "Friends"),
+      where("userId1", "in", [userId, auth.currentUser?.uid]),
+      limit(100)
+    );
+
+    const unsubscribeFriends = onSnapshot(friendsQuery, (snapshot) => {
+      const friendSet = new Set<string>();
+
+      snapshot.docs.forEach((doc) => {
+        const data = doc.data();
+        if (data.userId1 === userId) {
+          friendSet.add(data.userId2);
+        } else if (data.userId2 === userId) {
+          friendSet.add(data.userId1);
+        }
+      });
+
+      setFriendCount(friendSet.size);
+    });
+
+    return () => unsubscribeFriends();
+  }, [userId]);
+
+  useEffect(() => {
+    const unsubscribe = fetchAllPosts();
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [fetchAllPosts]);
+
+  useEffect(() => {
     const interval = setInterval(() => {
       syncPostsWithFirestore();
     }, 30000);
 
     return () => clearInterval(interval);
   }, [syncPostsWithFirestore]);
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      navigate("/login");
+    } catch (error) {
+      console.error("Error logging out: ", error);
+    }
+  };
+
+  // Loading and authorization checks
+  if (isLoadingAuth) {
+    return <div>Loading...</div>;
+  }
+
+  if (!isAuthorized) {
+    return <Navigate to="/login" replace />;
+  }
 
   return (
     <div className="flex flex-col items-center min-h-screen bg-gray-300 p-6 relative">
@@ -594,7 +487,7 @@ function Profile() {
         ) : error ? (
           <div className="text-red-500 text-center">{error}</div>
         ) : posts.length === 0 ? (
-          <div className="text-center text-gray-500">لا توجد منشورات</div>
+          <div className="text-center text-gray-500">No posts yet</div>
         ) : (
           posts.map((post) => (
             <PostCard
