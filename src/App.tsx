@@ -8,6 +8,7 @@ import {
 import Profile from "./componets/Profile";
 import Login from "./componets/Login";
 import Signup from "./componets/SignUp";
+import Loading from "./componets/Loading";
 import { auth, db } from "./componets/firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import Cookies from "js-cookie";
@@ -22,6 +23,7 @@ const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [userId, setUserId] = useState<string>("");
   const [theme, setTheme] = useState<"light" | "dark" | "pink">("light");
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const { i18n } = useTranslation();
   const [language, setLanguage] = useState(() => {
     return localStorage.getItem("language") || "ar";
@@ -40,6 +42,7 @@ const App: React.FC = () => {
         Cookies.remove("isLoggedIn");
         Cookies.remove("userId");
       }
+      setIsLoading(false);
     });
 
     return () => unsubscribe();
@@ -133,6 +136,10 @@ const App: React.FC = () => {
     document.dir = newLang === "ar" ? "rtl" : "ltr";
     i18n.changeLanguage(newLang);
   };
+
+  if (isLoading) {
+    return <Loading />;
+  }
 
   return (
     <LanguageProvider>
