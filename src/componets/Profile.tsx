@@ -138,6 +138,7 @@ function Profile() {
     const unsubscribeCallbacks: (() => void)[] = [];
 
     try {
+      // Fetch user's own posts
       const userPostsQuery = query(
         collection(db, "posts"),
         where("userId", "==", userId),
@@ -168,6 +169,57 @@ function Profile() {
       );
 
       unsubscribeCallbacks.push(unsubscribeUserPosts);
+
+      // Fetch friends' posts
+      const friendsQuery = query(
+        collection(db, "Friends"),
+        where("userId1", "in", [userId, auth.currentUser?.uid]),
+        limit(100)
+      );
+
+      const unsubscribeFriends = onSnapshot(friendsQuery, async (snapshot) => {
+        const friendIds = new Set<string>();
+
+        snapshot.docs.forEach((doc) => {
+          const data = doc.data();
+          if (data.userId1 === userId) {
+            friendIds.add(data.userId2);
+          } else if (data.userId2 === userId) {
+            friendIds.add(data.userId1);
+          }
+        });
+
+        // Fetch posts for each friend
+        const friendPostsQuery = query(
+          collection(db, "posts"),
+          where("userId", "in", Array.from(friendIds)),
+          orderBy("timestamp", "desc"),
+          limit(20)
+        );
+
+        const unsubscribeFriendPosts = onSnapshot(
+          friendPostsQuery,
+          (friendSnapshot) => {
+            const friendPosts = friendSnapshot.docs.map((doc) =>
+              convertDocToPost(doc, false)
+            );
+            setPosts((prevPosts) => {
+              const currentPostIds = new Set(prevPosts.map((post) => post.id));
+              const newPosts = friendPosts.filter(
+                (post) => !currentPostIds.has(post.id)
+              );
+              return [...prevPosts, ...newPosts];
+            });
+          },
+          (error) => {
+            console.error("Error fetching friend posts:", error);
+          }
+        );
+
+        unsubscribeCallbacks.push(unsubscribeFriendPosts);
+      });
+
+      unsubscribeCallbacks.push(unsubscribeFriends);
     } catch (error) {
       console.error("Error setting up post listeners:", error);
       setError("Failed to load posts");
