@@ -181,7 +181,7 @@ function Profile() {
   const fetchAllPosts = useCallback(() => {
     if (!userId) return () => {};
 
-    let unsubscribeCallbacks: (() => void)[] = [];
+    const unsubscribeCallbacks: (() => void)[] = [];
 
     try {
       // 1. جلب منشورات المستخدم
@@ -394,7 +394,7 @@ function Profile() {
       const currentUserId = auth.currentUser.uid;
 
       // تأكد من أن likedBy موجود دائماً كمصفوفة
-      let likedBy: string[] = Array.isArray(postData.likedBy)
+      const likedBy: string[] = Array.isArray(postData.likedBy)
         ? [...postData.likedBy]
         : [];
 
@@ -452,8 +452,7 @@ function Profile() {
     imageUrl: string | null,
     spotifyUrl: string,
     // استخدام underscore للإشارة إلى أن هذه المتغيرات غير مستخدمة
-    _audioUrl: string | null,
-    _timestamp: number
+   
   ) => {
     try {
       if (!auth.currentUser?.uid) {
