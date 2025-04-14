@@ -360,10 +360,16 @@ function Profile() {
           return;
         }
 
-        const friendshipDoc = await getDoc(
-          doc(db, "Friendships", `${currentUser.uid}_${userId}`)
+        // Check friendship in Friends collection
+        const friendsQuery = query(
+          collection(db, "Friends"),
+          where("userId1", "in", [currentUser.uid, userId]),
+          where("userId2", "in", [currentUser.uid, userId]),
+          limit(1)
         );
-        const isFriend = friendshipDoc.exists();
+
+        const snapshot = await getDocs(friendsQuery);
+        const isFriend = !snapshot.empty;
 
         setIsAuthorized(isFriend);
         setIsLoadingAuth(false);
